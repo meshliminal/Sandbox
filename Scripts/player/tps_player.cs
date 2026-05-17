@@ -37,6 +37,9 @@ public class npc_move_anim : MonoBehaviour
     private float moveXVelocity;
     private float moveZVelocity;
 
+    // Kamera yaw
+    private float cameraYaw;
+
     // NPC Health
     private NPCHealth npcHealth;
 
@@ -48,7 +51,7 @@ public class npc_move_anim : MonoBehaviour
 
     void Update()
     {
-        // Ha meghalt, ne mozogjon
+        // Ha meghalt
         if (npcHealth != null && npcHealth.currentHealth <= 0)
         {
             animator.SetFloat("Speed", 0f);
@@ -72,32 +75,42 @@ public class npc_move_anim : MonoBehaviour
         }
     }
 
+    // Kamera átadja a yaw értéket
+    public void SetCameraYaw(float yaw)
+    {
+        cameraYaw = yaw;
+    }
+
     void StartJump()
     {
         float moveX = 0f;
         float moveZ = 0f;
 
-        // Strafe input
         if (Input.GetKey(KeyCode.A))
             moveX = -1f;
 
         if (Input.GetKey(KeyCode.D))
             moveX = 1f;
 
-        // Forward / backward
         if (Input.GetKey(KeyCode.W))
             moveZ = 1f;
 
         if (Input.GetKey(KeyCode.S))
             moveZ = -1f;
 
-        // Hátramenetnél ne lehessen oldalra menni
+        // Hátra ne lehessen strafelni
         if (moveZ < 0)
             moveX = 0f;
 
+        Vector3 camForward =
+            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward;
+
+        Vector3 camRight =
+            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.right;
+
         jumpDirection =
-            (transform.forward * moveZ +
-             transform.right * moveX).normalized;
+            (camForward * moveZ +
+             camRight * moveX).normalized;
 
         jumpDirection.y = 0f;
 
@@ -125,7 +138,6 @@ public class npc_move_anim : MonoBehaviour
 
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
 
-        // WASD input
         if (Input.GetKey(KeyCode.W))
             moveZ = 1f;
 
@@ -138,20 +150,19 @@ public class npc_move_anim : MonoBehaviour
         if (Input.GetKey(KeyCode.D))
             moveX = 1f;
 
-
-
-        // Hátramenetnél mindig egyenes hátra
+        // Hátra csak egyenes
         if (moveZ < 0)
             moveX = 0f;
 
-        bool isMoving = moveX != 0 || moveZ != 0;
+        bool isMoving =
+            moveX != 0 || moveZ != 0;
 
         float targetSpeed = 0f;
 
         if (isMoving)
-            targetSpeed = isRunning ? 2f : 1f;
+            targetSpeed =
+                isRunning ? 2f : 1f;
 
-        // Smooth speed
         currentSpeed = Mathf.SmoothDamp(
             currentSpeed,
             targetSpeed,
@@ -161,7 +172,6 @@ public class npc_move_anim : MonoBehaviour
 
         animator.SetFloat("Speed", currentSpeed);
 
-        // Smooth animator values
         float smoothX = Mathf.SmoothDamp(
             animator.GetFloat("MoveX"),
             moveX,
@@ -192,33 +202,47 @@ public class npc_move_anim : MonoBehaviour
             ? moveSpeed * runMultiplier
             : moveSpeed;
 
-        // Movement direction
+        // Kamera irányai
+        Vector3 camForward =
+            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward;
+
+        Vector3 camRight =
+            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.right;
+
+        camForward.y = 0f;
+        camRight.y = 0f;
+
+        camForward.Normalize();
+        camRight.Normalize();
+
+        // Mozgás kamera alapján
         Vector3 moveDir =
-            transform.forward * moveZ +
-            transform.right * moveX;
+            camForward * moveZ +
+            camRight * moveX;
 
-        if (moveDir != Vector3.zero)
+        moveDir.Normalize();
+
+        transform.position +=
+            moveDir *
+            currentMoveSpeed *
+            Time.deltaTime;
+
+        // CSAK előremenetnél forduljon az egér irányába
+        if (moveZ > 0)
         {
-            moveDir.y = 0f;
-            moveDir.Normalize();
+            Quaternion targetRotation =
+                Quaternion.Euler(
+                    0f,
+                    cameraYaw,
+                    0f
+                );
 
-            transform.position +=
-                moveDir * currentMoveSpeed * Time.deltaTime;
-
-            // Csak előremenetnél forduljon
-            if (moveZ > 0)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(
-                        new Vector3(moveDir.x, 0f, moveDir.z)
-                    );
-
-                transform.rotation = Quaternion.Slerp(
+            transform.rotation =
+                Quaternion.Slerp(
                     transform.rotation,
                     targetRotation,
                     rotationSpeed * Time.deltaTime
                 );
-            }
         }
     }
 
@@ -228,7 +252,8 @@ public class npc_move_anim : MonoBehaviour
 
         animator.SetTrigger("Jump");
 
-        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        bool isRunning =
+            Input.GetKey(KeyCode.LeftShift);
 
         Vector3 startPos;
 
@@ -246,8 +271,9 @@ public class npc_move_anim : MonoBehaviour
 
         while (time < jumpDuration)
         {
-            // Ha meghalt ugrás közben
-            if (npcHealth != null && npcHealth.currentHealth <= 0)
+            // Ha meghalt
+            if (npcHealth != null &&
+                npcHealth.currentHealth <= 0)
             {
                 isJumping = false;
                 yield break;
@@ -256,10 +282,14 @@ public class npc_move_anim : MonoBehaviour
             float t = time / jumpDuration;
 
             float height =
-                Mathf.Sin(t * Mathf.PI) * jumpHeight;
+                Mathf.Sin(t * Mathf.PI) *
+                jumpHeight;
 
             Vector3 horizontal =
-                jumpDirection * speed * 0.6f * time;
+                jumpDirection *
+                speed *
+                0.6f *
+                time;
 
             Vector3 baseGround;
 

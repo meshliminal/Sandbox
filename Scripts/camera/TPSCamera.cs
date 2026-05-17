@@ -5,6 +5,9 @@ public class TPSCamera : MonoBehaviour
     [Header("Target")]
     public Transform target;
 
+    [Header("Player Controller")]
+    public npc_move_anim playerController;
+
     [Header("Offset")]
     public Vector3 offset = new Vector3(0f, 2f, -4f);
 
@@ -59,6 +62,12 @@ public class TPSCamera : MonoBehaviour
         pitch -= mouseY;
 
         pitch = Mathf.Clamp(pitch, minYAngle, maxYAngle);
+
+        // Kommunikáció a playerrel
+        if (playerController != null)
+        {
+            playerController.SetCameraYaw(yaw);
+        }
     }
 
     void HandleZoom()
@@ -85,18 +94,18 @@ public class TPSCamera : MonoBehaviour
             target.position +
             rotation * offset;
 
-        // Kamera célpontja
-        Vector3 targetPosition = target.position + Vector3.up * 1.5f;
+        Vector3 targetPosition =
+            target.position + Vector3.up * 1.5f;
 
-        // Irány a targettől a kívánt kamerapozícióig
-        Vector3 direction = desiredPosition - targetPosition;
+        Vector3 direction =
+            desiredPosition - targetPosition;
+
         float distance = direction.magnitude;
 
         direction.Normalize();
 
         RaycastHit hit;
 
-        // Ütközés a level layerrel
         if (Physics.SphereCast(
             targetPosition,
             collisionRadius,
