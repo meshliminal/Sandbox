@@ -4,26 +4,32 @@ using UnityEngine;
 public class PlayerHealth : MonoBehaviour
 {
     public float maxHealth = 100f; // Maximális életerõ
-    private float currentHealth;
+    public float currentHealth;
 
     public GameObject deadBody;
     public GameObject deadUi;
+
     private bool isDead = false; // Halál állapot nyomon követése
-    
 
+    private Rigidbody playerRb;
+    private Collider[] playerColliders;
 
-
-void Start()
+    void Start()
     {
         currentHealth = maxHealth; // Kezdetben teljes élet
+
         deadBody.SetActive(false);
+
+        playerRb = GetComponent<Rigidbody>();
+        playerColliders = GetComponentsInChildren<Collider>();
     }
 
     public void TakeDamage(float amount)
     {
         if (isDead) return; // Ne vegyen kárt, ha már halott
+
         currentHealth -= amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth); // Nem mehet 0 alá vagy max fölé
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
 
         Debug.Log($"Current Health: {currentHealth}");
 
@@ -37,51 +43,87 @@ void Start()
     {
         Debug.Log("Player has died!");
         isDead = true;
-                // Ha be van állítva a deadBody, frissítjük a pozícióját és rotációját
+
+        // PLAYER MOZGÁS LEÁLLÍTÁS
+        if (playerRb != null)
+        {
+            playerRb.linearVelocity = Vector3.zero;
+            playerRb.angularVelocity = Vector3.zero;
+            playerRb.isKinematic = true;
+        }
+
+        // COLLIDEREK KIKAPCSOLÁSA
+        foreach (Collider col in playerColliders)
+        {
+            col.enabled = false;
+        }
+
+        // Dead body aktiválás
         if (deadBody != null)
         {
-            // Pozíció frissítése (játékos alatt marad)
-            Vector3 offset = new Vector3(0, -0.5f, 0); // Példa offset: felfelé és elõre
-            deadBody.transform.position = transform.position + offset;
+            // Pozíció és rotáció másolása
+            Vector3 offset = new Vector3(0, -0.5f, 0);
 
-            // Rotáció frissítése (játékos rotációját másolja)
+            deadBody.transform.position = transform.position + offset;
             deadBody.transform.rotation = transform.rotation;
 
-            ActivateWithDelay();
+            deadBody.SetActive(true);
+
+            Rigidbody[] rigidbodies =
+                deadBody.GetComponentsInChildren<Rigidbody>();
+
+            // Nullázás mielõtt aktiváljuk
+            foreach (Rigidbody rb in rigidbodies)
+            {
+                rb.isKinematic = true;
+
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
+            StartCoroutine(DisableKinematicAfterDelay());
+        }
+
+        if (deadUi != null)
+        {
             deadUi.SetActive(true);
         }
+
+        // Élõ karakter kikapcsolása
+        gameObject.SetActive(false);
     }
 
     public void RefillHealth(float amount)
     {
-        currentHealth += amount; // Hozzáadjuk a gyógyítást
+        currentHealth += amount;
+
         if (currentHealth > maxHealth)
         {
-            currentHealth = maxHealth; // Ne lépje túl a maximális életerõt
+            currentHealth = maxHealth;
         }
-        //healthBar.UpdateHealthBar(currentHealth / maxHealth); // Életcsík frissítése
+
         Debug.Log("Health refilled by " + amount);
     }
 
     public float GetHealthPercentage()
     {
-        return currentHealth / maxHealth; // Életcsíkhoz százalék
+        return currentHealth / maxHealth;
     }
 
-    public void ActivateWithDelay()
+    private IEnumerator DisableKinematicAfterDelay()
     {
-        deadBody.SetActive(true); // Aktiváljuk a testet
-        StartCoroutine(DisableKinematicAfterDelay(0.05f)); // 1 másodperc várakozás után kikapcsoljuk az isKinematic-et
-    }
+        yield return new WaitForFixedUpdate();
 
-    private IEnumerator DisableKinematicAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
+        Rigidbody[] rigidbodies =
+            deadBody.GetComponentsInChildren<Rigidbody>();
 
-        Rigidbody[] rigidbodies = deadBody.GetComponentsInChildren<Rigidbody>();
         foreach (Rigidbody rb in rigidbodies)
         {
-            rb.isKinematic = false; // Kikapcsoljuk az isKinematic-et
+            rb.isKinematic = false;
+
+            // EXTRA BIZTONSÁG
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
     }
 }

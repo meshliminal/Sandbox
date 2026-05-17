@@ -7,29 +7,31 @@ public class npc_move_anim : MonoBehaviour
     public float moveSpeed = 3f;
     public float runMultiplier = 2f;
     public float rotationSpeed = 10f;
+    public float gravityForce = 25f;
+    public float airControl = 0.65f;
+    public float movementSmoothTime = 0.08f;
 
     [Header("Jump")]
-    public float jumpHeight = 2f;
-    public float jumpDuration = 0.5f;
+    public float jumpHeight = 2.2f;
+    public float jumpDuration = 0.65f;
+    public float jumpForwardMultiplier = 2f;
+    public float jumpMomentumBlend = 6f;
+    public float landingSnapForce = 25f;
 
     [Header("Shoot")]
     public float shootCooldown = 0.5f;
 
     [Header("Ground Check")]
-    public float groundCheckDistance = 2f;
+    public float groundCheckDistance = 1.2f;
     public LayerMask groundMask;
 
     [Header("Height Offset")]
     public float yOffset = 0f;
-    public float scrollSpeed = 2f;
-    public float minYOffset = -5f;
-    public float maxYOffset = 5f;
 
     private bool isJumping = false;
     private bool isShooting = false;
 
     private Animator animator;
-    private Vector3 jumpDirection;
 
     private float speedVelocity;
     private float currentSpeed;
@@ -37,98 +39,155 @@ public class npc_move_anim : MonoBehaviour
     private float moveXVelocity;
     private float moveZVelocity;
 
+    private float verticalVelocity;
+
+    private Vector3 currentMoveDirection;
+    private Vector3 moveDirectionVelocity;
+
+    private Vector3 jumpHorizontalVelocity;
+
     // Kamera yaw
     private float cameraYaw;
 
     // NPC Health
     private NPCHealth npcHealth;
 
+    // Rigidbody
+    private Rigidbody rb;
+
     void Start()
     {
         animator = GetComponent<Animator>();
         npcHealth = GetComponent<NPCHealth>();
+        rb = GetComponent<Rigidbody>();
     }
 
     void Update()
     {
-        // Ha meghalt
-        if (npcHealth != null && npcHealth.currentHealth <= 0)
+        // Dead
+        if (npcHealth != null &&
+            npcHealth.currentHealth <= 0)
         {
             animator.SetFloat("Speed", 0f);
             animator.SetFloat("MoveX", 0f);
             animator.SetFloat("MoveZ", 0f);
+
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
             return;
         }
 
         HandleMovement();
 
         // Jump
-        if (Input.GetKey(KeyCode.Space) && !isJumping)
+        if (Input.GetKeyDown(KeyCode.Space) &&
+            !isJumping &&
+            IsGrounded())
         {
             StartJump();
         }
 
         // Shoot
-        if (Input.GetKeyDown(KeyCode.E) && !isShooting)
+        if (Input.GetKeyDown(KeyCode.E) &&
+            !isShooting)
         {
             StartCoroutine(Shoot());
         }
     }
 
-    // Kamera átadja a yaw értéket
     public void SetCameraYaw(float yaw)
     {
         cameraYaw = yaw;
     }
 
-    void StartJump()
+    bool IsGrounded()
+    {
+        Vector3 origin =
+            transform.position + Vector3.up * 0.25f;
+
+        return Physics.Raycast(
+            origin,
+            Vector3.down,
+            groundCheckDistance,
+            groundMask
+        );
+    }
+
+    Vector3 GetInputDirection()
     {
         float moveX = 0f;
         float moveZ = 0f;
 
-        if (Input.GetKey(KeyCode.A))
-            moveX = -1f;
-
-        if (Input.GetKey(KeyCode.D))
-            moveX = 1f;
-
         if (Input.GetKey(KeyCode.W))
-            moveZ = 1f;
+            moveZ += 1f;
 
         if (Input.GetKey(KeyCode.S))
-            moveZ = -1f;
+            moveZ -= 1f;
+
+        if (Input.GetKey(KeyCode.A))
+            moveX -= 1f;
+
+        if (Input.GetKey(KeyCode.D))
+            moveX += 1f;
 
         // Hátra ne lehessen strafelni
         if (moveZ < 0)
             moveX = 0f;
 
         Vector3 camForward =
-            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward;
+            Quaternion.Euler(0f, cameraYaw, 0f) *
+            Vector3.forward;
 
         Vector3 camRight =
-            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.right;
+            Quaternion.Euler(0f, cameraYaw, 0f) *
+            Vector3.right;
 
-        jumpDirection =
-            (camForward * moveZ +
-             camRight * moveX).normalized;
+        camForward.y = 0f;
+        camRight.y = 0f;
 
-        jumpDirection.y = 0f;
+        camForward.Normalize();
+        camRight.Normalize();
 
-        StartCoroutine(Jump());
+        Vector3 moveDir =
+            camForward * moveZ +
+            camRight * moveX;
+
+        return moveDir.normalized;
     }
 
-    bool GetGroundPoint(out Vector3 groundPoint)
+    void StartJump()
     {
-        Vector3 origin = transform.position + Vector3.up;
+        isJumping = true;
 
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask))
-        {
-            groundPoint = hit.point;
-            return true;
-        }
+        animator.SetTrigger("Jump");
 
-        groundPoint = transform.position;
-        return false;
+        bool isRunning =
+            Input.GetKey(KeyCode.LeftShift);
+
+        float currentMoveSpeed =
+            isRunning
+            ? moveSpeed * runMultiplier
+            : moveSpeed;
+
+        Vector3 inputDir = GetInputDirection();
+
+        jumpHorizontalVelocity =
+            inputDir *
+            currentMoveSpeed *
+            jumpForwardMultiplier;
+
+        verticalVelocity =
+            Mathf.Sqrt(
+                jumpHeight *
+                gravityForce *
+                2f
+            );
+
+        StartCoroutine(JumpCoroutine());
     }
 
     void HandleMovement()
@@ -136,21 +195,21 @@ public class npc_move_anim : MonoBehaviour
         float moveX = 0f;
         float moveZ = 0f;
 
-        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        bool isRunning =
+            Input.GetKey(KeyCode.LeftShift);
 
         if (Input.GetKey(KeyCode.W))
-            moveZ = 1f;
+            moveZ += 1f;
 
         if (Input.GetKey(KeyCode.S))
-            moveZ = -1f;
+            moveZ -= 1f;
 
         if (Input.GetKey(KeyCode.A))
-            moveX = -1f;
+            moveX -= 1f;
 
         if (Input.GetKey(KeyCode.D))
-            moveX = 1f;
+            moveX += 1f;
 
-        // Hátra csak egyenes
         if (moveZ < 0)
             moveX = 0f;
 
@@ -160,8 +219,10 @@ public class npc_move_anim : MonoBehaviour
         float targetSpeed = 0f;
 
         if (isMoving)
+        {
             targetSpeed =
                 isRunning ? 2f : 1f;
+        }
 
         currentSpeed = Mathf.SmoothDamp(
             currentSpeed,
@@ -189,52 +250,116 @@ public class npc_move_anim : MonoBehaviour
         animator.SetFloat("MoveX", smoothX);
         animator.SetFloat("MoveZ", smoothZ);
 
-        animator.speed = 1f;
+        Vector3 targetMoveDir =
+            GetInputDirection();
 
-        if (isJumping)
-            return;
-
-        if (!isMoving)
-            return;
+        currentMoveDirection =
+            Vector3.SmoothDamp(
+                currentMoveDirection,
+                targetMoveDir,
+                ref moveDirectionVelocity,
+                movementSmoothTime
+            );
 
         float currentMoveSpeed =
             isRunning
             ? moveSpeed * runMultiplier
             : moveSpeed;
 
-        // Kamera irányai
-        Vector3 camForward =
-            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward;
+        // GRAVITY
+        if (!IsGrounded() || verticalVelocity > 0f)
+        {
+            verticalVelocity -=
+                gravityForce * Time.deltaTime;
+        }
+        else if (!isJumping)
+        {
+            verticalVelocity = -2f;
+        }
 
-        Vector3 camRight =
-            Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.right;
+        Vector3 horizontalVelocity;
 
-        camForward.y = 0f;
-        camRight.y = 0f;
+        // AIR CONTROL TPS STYLE
+        if (isJumping)
+        {
+            Vector3 desiredAirVelocity =
+                currentMoveDirection *
+                currentMoveSpeed *
+                jumpForwardMultiplier;
 
-        camForward.Normalize();
-        camRight.Normalize();
+            jumpHorizontalVelocity =
+                Vector3.Lerp(
+                    jumpHorizontalVelocity,
+                    desiredAirVelocity,
+                    airControl * Time.deltaTime * 10f
+                );
 
-        // Mozgás kamera alapján
-        Vector3 moveDir =
-            camForward * moveZ +
-            camRight * moveX;
+            horizontalVelocity =
+                jumpHorizontalVelocity;
+        }
+        else
+        {
+            horizontalVelocity =
+                currentMoveDirection *
+                currentMoveSpeed;
+        }
 
-        moveDir.Normalize();
+        Vector3 finalVelocity =
+            horizontalVelocity;
+
+        finalVelocity.y = verticalVelocity;
 
         transform.position +=
-            moveDir *
-            currentMoveSpeed *
-            Time.deltaTime;
+            finalVelocity * Time.deltaTime;
 
-        // CSAK előremenetnél forduljon az egér irányába
-        if (moveZ > 0)
+        // TALAJ SNAP
+        if (!isJumping &&
+            verticalVelocity <= 0f)
+        {
+            if (Physics.Raycast(
+                transform.position + Vector3.up,
+                Vector3.down,
+                out RaycastHit snapHit,
+                3f,
+                groundMask))
+            {
+                float targetY =
+                    snapHit.point.y + yOffset;
+
+                transform.position =
+                    Vector3.Lerp(
+                        transform.position,
+                        new Vector3(
+                            transform.position.x,
+                            targetY,
+                            transform.position.z
+                        ),
+                        landingSnapForce *
+                        Time.deltaTime
+                    );
+            }
+        }
+
+        // Rigidbody stabil
+        if (rb != null)
+        {
+            rb.linearVelocity =
+                new Vector3(
+                    0f,
+                    rb.linearVelocity.y,
+                    0f
+                );
+
+            rb.angularVelocity =
+                Vector3.zero;
+        }
+
+        // TPS forgás
+        if (currentMoveDirection.sqrMagnitude > 0.01f)
         {
             Quaternion targetRotation =
-                Quaternion.Euler(
-                    0f,
-                    cameraYaw,
-                    0f
+                Quaternion.LookRotation(
+                    currentMoveDirection
                 );
 
             transform.rotation =
@@ -246,32 +371,10 @@ public class npc_move_anim : MonoBehaviour
         }
     }
 
-    IEnumerator Jump()
+    IEnumerator JumpCoroutine()
     {
-        isJumping = true;
-
-        animator.SetTrigger("Jump");
-
-        bool isRunning =
-            Input.GetKey(KeyCode.LeftShift);
-
-        Vector3 startPos;
-
-        if (!GetGroundPoint(out startPos))
+        while (true)
         {
-            startPos = transform.position;
-        }
-
-        float speed =
-            isRunning
-            ? moveSpeed * runMultiplier
-            : moveSpeed;
-
-        float time = 0f;
-
-        while (time < jumpDuration)
-        {
-            // Ha meghalt
             if (npcHealth != null &&
                 npcHealth.currentHealth <= 0)
             {
@@ -279,40 +382,35 @@ public class npc_move_anim : MonoBehaviour
                 yield break;
             }
 
-            float t = time / jumpDuration;
+            // Land detection
+            if (verticalVelocity <= 0f &&
+                IsGrounded())
+            {
+                break;
+            }
 
-            float height =
-                Mathf.Sin(t * Mathf.PI) *
-                jumpHeight;
-
-            Vector3 horizontal =
-                jumpDirection *
-                speed *
-                0.6f *
-                time;
-
-            Vector3 baseGround;
-
-            GetGroundPoint(out baseGround);
-
-            transform.position = new Vector3(
-                startPos.x + horizontal.x,
-                baseGround.y + height + yOffset,
-                startPos.z + horizontal.z
-            );
-
-            time += Time.deltaTime;
             yield return null;
         }
 
-        if (GetGroundPoint(out Vector3 finalGround))
+        // Ground snap
+        if (Physics.Raycast(
+            transform.position + Vector3.up * 2f,
+            Vector3.down,
+            out RaycastHit hit,
+            5f,
+            groundMask))
         {
-            transform.position = new Vector3(
-                transform.position.x,
-                finalGround.y + yOffset,
-                transform.position.z
-            );
+            transform.position =
+                new Vector3(
+                    transform.position.x,
+                    hit.point.y + yOffset,
+                    transform.position.z
+                );
         }
+
+        verticalVelocity = -2f;
+
+        jumpHorizontalVelocity = Vector3.zero;
 
         isJumping = false;
     }
@@ -323,7 +421,9 @@ public class npc_move_anim : MonoBehaviour
 
         animator.SetTrigger("Shoot");
 
-        yield return new WaitForSeconds(shootCooldown);
+        yield return new WaitForSeconds(
+            shootCooldown
+        );
 
         isShooting = false;
     }

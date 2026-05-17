@@ -13,9 +13,16 @@ public class DamageDealer : MonoBehaviour
     private float lastDamageTime;
     private Rigidbody rb;
 
+    // Health referenciák
+    private PlayerHealth playerHealth;
+    private NPCHealth npcHealth;
+
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        playerHealth = GetComponent<PlayerHealth>();
+        npcHealth = GetComponent<NPCHealth>();
 
         if (rb == null && useMovementCheck)
         {
@@ -23,8 +30,35 @@ public class DamageDealer : MonoBehaviour
         }
     }
 
+    private void FixedUpdate()
+    {
+        // Ha meghalt → velocity nullázás
+        if (IsDead() && rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+    }
+
+    bool IsDead()
+    {
+        if (playerHealth != null &&
+            playerHealth.currentHealth <= 0)
+            return true;
+
+        if (npcHealth != null &&
+            npcHealth.currentHealth <= 0)
+            return true;
+
+        return false;
+    }
+
     private void OnTriggerStay(Collider other)
     {
+        // Halott objektum ne sebezzen
+        if (IsDead())
+            return;
+
         bool canDealDamage = true;
 
         // Mozgás ellenőrzés
@@ -32,7 +66,13 @@ public class DamageDealer : MonoBehaviour
         {
             if (rb != null)
             {
-                canDealDamage = rb.linearVelocity.magnitude > movementThreshold;
+                // Csak vízszintes mozgás számítson
+                Vector3 horizontalVelocity = rb.linearVelocity;
+                horizontalVelocity.y = 0f;
+
+                canDealDamage =
+                    horizontalVelocity.magnitude >
+                    movementThreshold;
             }
             else
             {
@@ -41,13 +81,16 @@ public class DamageDealer : MonoBehaviour
         }
 
         // Sebzés időköz ellenőrzés
-        if (!canDealDamage || Time.time < lastDamageTime + damageInterval)
+        if (!canDealDamage ||
+            Time.time < lastDamageTime + damageInterval)
             return;
 
         // PLAYER sebzés
-        PlayerHealth player = other.GetComponent<PlayerHealth>();
+        PlayerHealth player =
+            other.GetComponent<PlayerHealth>();
 
-        if (player != null)
+        if (player != null &&
+            player.currentHealth > 0)
         {
             player.TakeDamage(damageAmount);
             lastDamageTime = Time.time;
@@ -55,9 +98,11 @@ public class DamageDealer : MonoBehaviour
         }
 
         // NPC sebzés
-        NPCHealth npc = other.GetComponent<NPCHealth>();
+        NPCHealth npc =
+            other.GetComponent<NPCHealth>();
 
-        if (npc != null)
+        if (npc != null &&
+            npc.currentHealth > 0)
         {
             npc.TakeDamage(damageAmount);
             lastDamageTime = Time.time;
