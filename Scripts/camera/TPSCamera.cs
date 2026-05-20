@@ -13,41 +13,45 @@ public class TPSCamera : MonoBehaviour
 
     [Header("Normal Offset")]
     public Vector3 normalOffset =
-        new Vector3(0f, 2f, -4f);
+        new Vector3(0f, 1.8f, -5.5f);
 
     [Header("Aim Offset")]
     public Vector3 aimOffset =
-        new Vector3(0.45f, 1.95f, -2.6f);
+        new Vector3(0.4f, 1.45f, -2f);
 
     [Header("Aim")]
-    public float aimTargetDistance = 50f;
+    public float aimTargetDistance = 100f;
 
     [Header("Zoom")]
-    public float zoomSpeed = 0.5f;
-    public float minDistance = 2f;
-    public float maxDistance = 10f;
+    public float zoomSpeed = 1f;
+    public float minDistance = 1.5f;
+    public float maxDistance = 12f;
 
     [Header("Rotation")]
-    public float mouseSensitivity = 3f;
-    public float minYAngle = -30f;
-    public float maxYAngle = 70f;
+    public float mouseSensitivity = 2.2f;
+    public float rotationSmoothSpeed = 14f;
+    public float minYAngle = -35f;
+    public float maxYAngle = 75f;
 
     [Header("Smoothing")]
-    public float positionSmoothTime = 0.05f;
-    public float aimSmoothSpeed = 8f;
+    public float positionSmoothTime = 0.12f;
+    public float aimSmoothSpeed = 10f;
 
     [Header("FOV")]
-    public float normalFov = 60f;
-    public float aimFov = 50f;
-    public float fovSmooth = 8f;
+    public float normalFov = 65f;
+    public float aimFov = 38f;
+    public float fovSmooth = 10f;
 
     [Header("Collision")]
     public LayerMask levelLayer;
-    public float collisionRadius = 0.2f;
+    public float collisionRadius = 0.25f;
     public float collisionOffset = 0.2f;
 
     private float yaw;
     private float pitch;
+
+    private float currentYaw;
+    private float currentPitch;
 
     private Vector3 currentOffset;
     private Vector3 positionVelocity;
@@ -71,6 +75,9 @@ public class TPSCamera : MonoBehaviour
         yaw = angles.y;
         pitch = angles.x;
 
+        currentYaw = yaw;
+        currentPitch = pitch;
+
         currentOffset =
             normalOffset;
     }
@@ -89,6 +96,8 @@ public class TPSCamera : MonoBehaviour
 
     void HandleAim()
     {
+        // Aim csak jobb klikkre
+
         isAiming =
             Input.GetMouseButton(1);
 
@@ -125,10 +134,28 @@ public class TPSCamera : MonoBehaviour
             maxYAngle
         );
 
+        // Smooth kamera rotáció
+
+        currentYaw =
+            Mathf.LerpAngle(
+                currentYaw,
+                yaw,
+                Time.deltaTime *
+                rotationSmoothSpeed
+            );
+
+        currentPitch =
+            Mathf.Lerp(
+                currentPitch,
+                pitch,
+                Time.deltaTime *
+                rotationSmoothSpeed
+            );
+
         if (playerController != null)
         {
             playerController
-                .SetCameraYaw(yaw);
+                .SetCameraYaw(currentYaw);
         }
     }
 
@@ -139,10 +166,9 @@ public class TPSCamera : MonoBehaviour
 
         if (scroll != 0f)
         {
-            normalOffset.z +=
-                scroll * zoomSpeed;
+            // Normál kamera zoom
 
-            aimOffset.z +=
+            normalOffset.z +=
                 scroll * zoomSpeed;
 
             normalOffset.z =
@@ -152,11 +178,16 @@ public class TPSCamera : MonoBehaviour
                     -minDistance
                 );
 
+            // Aim kamera zoom
+
+            aimOffset.z +=
+                scroll * zoomSpeed;
+
             aimOffset.z =
                 Mathf.Clamp(
                     aimOffset.z,
-                    -maxDistance,
-                    -minDistance + 0.5f
+                    -6f,
+                    -1f
                 );
         }
     }
@@ -184,22 +215,25 @@ public class TPSCamera : MonoBehaviour
     {
         Quaternion rotation =
             Quaternion.Euler(
-                pitch,
-                yaw,
+                currentPitch,
+                currentYaw,
                 0f
             );
 
-        // PLAYER körüli orbit marad
-
-        Vector3 desiredPosition =
-            playerTarget.position +
-            rotation * currentOffset;
-
-        // COLLISION
+        // Pivot alacsonyabban
+        // hogy ne legyen magas a célzás
 
         Vector3 pivotPoint =
             playerTarget.position +
-            Vector3.up * 1.6f;
+            Vector3.up * 1.45f;
+
+        // Orbit kamera
+
+        Vector3 desiredPosition =
+            pivotPoint +
+            rotation * currentOffset;
+
+        // Collision
 
         Vector3 direction =
             desiredPosition -
@@ -210,24 +244,24 @@ public class TPSCamera : MonoBehaviour
 
         direction.Normalize();
 
-        RaycastHit collisionHit;
+        RaycastHit hit;
 
         if (Physics.SphereCast(
             pivotPoint,
             collisionRadius,
             direction,
-            out collisionHit,
+            out hit,
             distance,
             levelLayer
         ))
         {
             desiredPosition =
-                collisionHit.point -
+                hit.point -
                 direction *
                 collisionOffset;
         }
 
-        // SMOOTH POSITION
+        // Smooth kamera mozgás
 
         transform.position =
             Vector3.SmoothDamp(
@@ -237,11 +271,15 @@ public class TPSCamera : MonoBehaviour
                 positionSmoothTime
             );
 
-        // FONTOS:
-        // Orbit rotáció marad aim közben is
+        // Smooth rotáció
 
         transform.rotation =
-            rotation;
+            Quaternion.Slerp(
+                transform.rotation,
+                rotation,
+                Time.deltaTime *
+                rotationSmoothSpeed
+            );
     }
 
     public bool IsAiming()
@@ -251,6 +289,6 @@ public class TPSCamera : MonoBehaviour
 
     public float GetYaw()
     {
-        return yaw;
+        return currentYaw;
     }
 }
