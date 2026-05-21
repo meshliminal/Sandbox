@@ -1,12 +1,29 @@
 using System.Collections;
 using UnityEngine;
 
-public class npc_move_anim : MonoBehaviour
+public class tps_player : MonoBehaviour
 {
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float runMultiplier = 2f;
+
+    [Header("Rotation")]
+
+    // Régi TPS forgás mozgás irányába
+    public bool rotateToMovement = true;
+
+    // ÚJ TPS forgás kamera irányába
+    public bool rotateToCamera = true;
+
+    // Movement rotation smooth
     public float rotationSpeed = 10f;
+
+    // Camera rotation smooth
+    public float cameraTurnSmooth = 4f;
+
+    [Header("Turn Animation")]
+    public float turnAnimationSmooth = 8f;
+
     public float gravityForce = 25f;
     public float airControl = 0.65f;
     public float movementSmoothTime = 0.08f;
@@ -49,6 +66,11 @@ public class npc_move_anim : MonoBehaviour
     // Kamera yaw
     private float cameraYaw;
 
+    // TURN SYSTEM
+    private float lastCameraYaw;
+    private float currentTurnValue;
+    private float turnVelocity;
+
     // NPC Health
     private NPCHealth npcHealth;
 
@@ -60,6 +82,8 @@ public class npc_move_anim : MonoBehaviour
         animator = GetComponent<Animator>();
         npcHealth = GetComponent<NPCHealth>();
         rb = GetComponent<Rigidbody>();
+
+        lastCameraYaw = cameraYaw;
     }
 
     void Update()
@@ -71,6 +95,7 @@ public class npc_move_anim : MonoBehaviour
             animator.SetFloat("Speed", 0f);
             animator.SetFloat("MoveX", 0f);
             animator.SetFloat("MoveZ", 0f);
+            animator.SetFloat("Turn", 0f);
 
             if (rb != null)
             {
@@ -354,21 +379,86 @@ public class npc_move_anim : MonoBehaviour
                 Vector3.zero;
         }
 
-        // TPS forgás
-        if (currentMoveDirection.sqrMagnitude > 0.01f)
+        // RÉGI TPS forgás mozgási irány alapján
+
+        if (rotateToMovement)
         {
-            Quaternion targetRotation =
-                Quaternion.LookRotation(
-                    currentMoveDirection
+            if (currentMoveDirection.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRotation =
+                    Quaternion.LookRotation(
+                        currentMoveDirection
+                    );
+
+                transform.rotation =
+                    Quaternion.Slerp(
+                        transform.rotation,
+                        targetRotation,
+                        rotationSpeed * Time.deltaTime
+                    );
+            }
+        }
+
+        // ÚJ TPS forgás kamera irányába
+
+        if (rotateToCamera)
+        {
+            Quaternion cameraRotation =
+                Quaternion.Euler(
+                    0f,
+                    cameraYaw,
+                    0f
                 );
 
             transform.rotation =
                 Quaternion.Slerp(
                     transform.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.deltaTime
+                    cameraRotation,
+                    cameraTurnSmooth * Time.deltaTime
                 );
         }
+
+        // TURN ANIMATION
+
+        float yawDelta =
+            Mathf.DeltaAngle(
+                lastCameraYaw,
+                cameraYaw
+            );
+
+        float targetTurn = 0f;
+
+        // Jobbra
+        if (yawDelta > 0.1f)
+        {
+            targetTurn = 1f;
+        }
+        // Balra
+        else if (yawDelta < -0.1f)
+        {
+            targetTurn = -1f;
+        }
+
+        // Mozgás közben ne turn anim legyen
+        if (isMoving)
+        {
+            targetTurn = 0f;
+        }
+
+        currentTurnValue =
+            Mathf.SmoothDamp(
+                currentTurnValue,
+                targetTurn,
+                ref turnVelocity,
+                1f / turnAnimationSmooth
+            );
+
+        animator.SetFloat(
+            "Turn",
+            currentTurnValue
+        );
+
+        lastCameraYaw = cameraYaw;
     }
 
     IEnumerator JumpCoroutine()

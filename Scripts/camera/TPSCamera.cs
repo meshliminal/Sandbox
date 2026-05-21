@@ -9,7 +9,10 @@ public class TPSCamera : MonoBehaviour
     public Weapon_Glock weapon;
 
     [Header("Player Controller")]
-    public npc_move_anim playerController;
+    public tps_player playerController;
+
+    [Header("Crosshair")]
+    public GameObject crosshairObject;
 
     [Header("Normal Offset")]
     public Vector3 normalOffset =
@@ -80,6 +83,13 @@ public class TPSCamera : MonoBehaviour
 
         currentOffset =
             normalOffset;
+
+        // Crosshair induláskor rejtve
+
+        if (crosshairObject != null)
+        {
+            crosshairObject.SetActive(false);
+        }
     }
 
     void LateUpdate()
@@ -100,6 +110,13 @@ public class TPSCamera : MonoBehaviour
 
         isAiming =
             Input.GetMouseButton(1);
+
+        // Crosshair visibility
+
+        if (crosshairObject != null)
+        {
+            crosshairObject.SetActive(isAiming);
+        }
 
         Vector3 targetOffset =
             isAiming
