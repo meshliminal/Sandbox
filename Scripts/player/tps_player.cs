@@ -8,31 +8,22 @@ public class tps_player : MonoBehaviour
     public float runMultiplier = 2f;
 
     [Header("Rotation")]
-
-    // Régi TPS forgás mozgás irányába
-    public bool rotateToMovement = true;
-
-    // ÚJ TPS forgás kamera irányába
-    public bool rotateToCamera = true;
-
-    // Movement rotation smooth
     public float rotationSpeed = 10f;
 
-    // Camera rotation smooth
+    [Header("Camera Rotation")]
     public float cameraTurnSmooth = 4f;
 
     [Header("Turn Animation")]
     public float turnAnimationSmooth = 8f;
 
+    [Header("Physics")]
     public float gravityForce = 25f;
     public float airControl = 0.65f;
     public float movementSmoothTime = 0.08f;
 
     [Header("Jump")]
     public float jumpHeight = 2.2f;
-    public float jumpDuration = 0.65f;
     public float jumpForwardMultiplier = 2f;
-    public float jumpMomentumBlend = 6f;
     public float landingSnapForce = 25f;
 
     [Header("Shoot")]
@@ -49,6 +40,8 @@ public class tps_player : MonoBehaviour
     private bool isShooting = false;
 
     private Animator animator;
+    private Rigidbody rb;
+    private NPCHealth npcHealth;
 
     private float speedVelocity;
     private float currentSpeed;
@@ -63,25 +56,19 @@ public class tps_player : MonoBehaviour
 
     private Vector3 jumpHorizontalVelocity;
 
-    // Kamera yaw
+    // Camera
     private float cameraYaw;
 
-    // TURN SYSTEM
+    // Turn Animation
     private float lastCameraYaw;
     private float currentTurnValue;
     private float turnVelocity;
 
-    // NPC Health
-    private NPCHealth npcHealth;
-
-    // Rigidbody
-    private Rigidbody rb;
-
     void Start()
     {
         animator = GetComponent<Animator>();
-        npcHealth = GetComponent<NPCHealth>();
         rb = GetComponent<Rigidbody>();
+        npcHealth = GetComponent<NPCHealth>();
 
         lastCameraYaw = cameraYaw;
     }
@@ -147,21 +134,30 @@ public class tps_player : MonoBehaviour
         float moveX = 0f;
         float moveZ = 0f;
 
+        // W
         if (Input.GetKey(KeyCode.W))
             moveZ += 1f;
 
+        // S = megfordulás
         if (Input.GetKey(KeyCode.S))
-            moveZ -= 1f;
+        {
+            Vector3 backwardDir =
+                Quaternion.Euler(0f, cameraYaw, 0f) *
+                -Vector3.forward;
 
+            backwardDir.y = 0f;
+            backwardDir.Normalize();
+
+            return backwardDir;
+        }
+
+        // A
         if (Input.GetKey(KeyCode.A))
             moveX -= 1f;
 
+        // D
         if (Input.GetKey(KeyCode.D))
             moveX += 1f;
-
-        // Hátra ne lehessen strafelni
-        if (moveZ < 0)
-            moveX = 0f;
 
         Vector3 camForward =
             Quaternion.Euler(0f, cameraYaw, 0f) *
@@ -227,16 +223,13 @@ public class tps_player : MonoBehaviour
             moveZ += 1f;
 
         if (Input.GetKey(KeyCode.S))
-            moveZ -= 1f;
+            moveZ += 1f;
 
         if (Input.GetKey(KeyCode.A))
             moveX -= 1f;
 
         if (Input.GetKey(KeyCode.D))
             moveX += 1f;
-
-        if (moveZ < 0)
-            moveX = 0f;
 
         bool isMoving =
             moveX != 0 || moveZ != 0;
@@ -291,7 +284,7 @@ public class tps_player : MonoBehaviour
             ? moveSpeed * runMultiplier
             : moveSpeed;
 
-        // GRAVITY
+        // Gravity
         if (!IsGrounded() || verticalVelocity > 0f)
         {
             verticalVelocity -=
@@ -304,7 +297,7 @@ public class tps_player : MonoBehaviour
 
         Vector3 horizontalVelocity;
 
-        // AIR CONTROL TPS STYLE
+        // Air Control
         if (isJumping)
         {
             Vector3 desiredAirVelocity =
@@ -337,7 +330,7 @@ public class tps_player : MonoBehaviour
         transform.position +=
             finalVelocity * Time.deltaTime;
 
-        // TALAJ SNAP
+        // Ground Snap
         if (!isJumping &&
             verticalVelocity <= 0f)
         {
@@ -365,7 +358,7 @@ public class tps_player : MonoBehaviour
             }
         }
 
-        // Rigidbody stabil
+        // Rigidbody Stabilizer
         if (rb != null)
         {
             rb.linearVelocity =
@@ -379,47 +372,23 @@ public class tps_player : MonoBehaviour
                 Vector3.zero;
         }
 
-        // RÉGI TPS forgás mozgási irány alapján
-
-        if (rotateToMovement)
+        // Rotation
+        if (currentMoveDirection.sqrMagnitude > 0.01f)
         {
-            if (currentMoveDirection.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(
-                        currentMoveDirection
-                    );
-
-                transform.rotation =
-                    Quaternion.Slerp(
-                        transform.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.deltaTime
-                    );
-            }
-        }
-
-        // ÚJ TPS forgás kamera irányába
-
-        if (rotateToCamera)
-        {
-            Quaternion cameraRotation =
-                Quaternion.Euler(
-                    0f,
-                    cameraYaw,
-                    0f
+            Quaternion targetRotation =
+                Quaternion.LookRotation(
+                    currentMoveDirection
                 );
 
             transform.rotation =
                 Quaternion.Slerp(
                     transform.rotation,
-                    cameraRotation,
-                    cameraTurnSmooth * Time.deltaTime
+                    targetRotation,
+                    rotationSpeed * Time.deltaTime
                 );
         }
 
         // TURN ANIMATION
-
         float yawDelta =
             Mathf.DeltaAngle(
                 lastCameraYaw,
@@ -428,18 +397,15 @@ public class tps_player : MonoBehaviour
 
         float targetTurn = 0f;
 
-        // Jobbra
         if (yawDelta > 0.1f)
         {
             targetTurn = 1f;
         }
-        // Balra
         else if (yawDelta < -0.1f)
         {
             targetTurn = -1f;
         }
 
-        // Mozgás közben ne turn anim legyen
         if (isMoving)
         {
             targetTurn = 0f;
@@ -472,7 +438,6 @@ public class tps_player : MonoBehaviour
                 yield break;
             }
 
-            // Land detection
             if (verticalVelocity <= 0f &&
                 IsGrounded())
             {
@@ -482,7 +447,7 @@ public class tps_player : MonoBehaviour
             yield return null;
         }
 
-        // Ground snap
+        // Snap to ground
         if (Physics.Raycast(
             transform.position + Vector3.up * 2f,
             Vector3.down,
