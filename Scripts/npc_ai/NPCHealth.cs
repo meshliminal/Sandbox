@@ -26,7 +26,7 @@ public class NPCHealth : MonoBehaviour
     {
         currentHealth -= damage;
 
-        Debug.Log($"{gameObject.name} took {damage} damage, current health: {currentHealth}");
+        //Debug.Log($"{gameObject.name} took {damage} damage, current health: {currentHealth}");
 
         if (currentHealth <= 0)
         {
@@ -42,7 +42,7 @@ public class NPCHealth : MonoBehaviour
 
     void Die()
     {
-        Debug.Log($"{gameObject.name} has died!");
+        //Debug.Log($"{gameObject.name} has died!");
 
         if (objectToDetach != null)
         {
@@ -68,6 +68,6 @@ public class NPCHealth : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
         }
 
-        Debug.Log($"{objectToDetach.name} sikeresen leválasztva!");
+        //Debug.Log($"{objectToDetach.name} sikeresen leválasztva!");
     }
 }

@@ -45,7 +45,7 @@ public class npc_controller : MonoBehaviour
 
     public void ActivateRagdoll()
     {
-        Debug.Log("Ragdoll Activated"); 
+        //Debug.Log("Ragdoll Activated"); 
         EnableRagdoll(true); 
     }
 

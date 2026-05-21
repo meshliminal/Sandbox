@@ -8,18 +8,16 @@ public class tps_player : MonoBehaviour
     public float runMultiplier = 2f;
 
     [Header("Rotation")]
-
-    // Régi TPS forgás mozgás irányába
     public bool rotateToMovement = true;
-
-    // ÚJ TPS forgás kamera irányába
-    public bool rotateToCamera = true;
 
     // Movement rotation smooth
     public float rotationSpeed = 10f;
 
     // Camera rotation smooth
     public float cameraTurnSmooth = 4f;
+
+    [Header("Aim")]
+    public bool isAiming = false;
 
     [Header("Turn Animation")]
     public float turnAnimationSmooth = 8f;
@@ -88,6 +86,9 @@ public class tps_player : MonoBehaviour
 
     void Update()
     {
+        // AIM
+        isAiming = Input.GetMouseButton(1);
+
         // Dead
         if (npcHealth != null &&
             npcHealth.currentHealth <= 0)
@@ -173,15 +174,14 @@ public class tps_player : MonoBehaviour
         camForward.Normalize();
         camRight.Normalize();
 
-        // S gomb → forduljon meg
-        if (moveZ < 0f)
+        // NEM AIM módban:
+        // hátra gombnál forduljon meg
+        if (!isAiming && moveZ < 0f)
         {
             camForward *= -1f;
 
-            // ne lehessen hátra strafelni
             moveX = 0f;
 
-            // mindig forward motion legyen
             moveZ = 1f;
         }
 
@@ -243,8 +243,8 @@ public class tps_player : MonoBehaviour
         if (Input.GetKey(KeyCode.D))
             moveX += 1f;
 
-        // hátra strafe tiltás
-        if (moveZ < 0)
+        // csak nem aim módban tiltjuk
+        if (!isAiming && moveZ < 0)
             moveX = 0f;
 
         bool isMoving =
@@ -269,8 +269,8 @@ public class tps_player : MonoBehaviour
 
         float animMoveZ = moveZ;
 
-        // S gombnál is forward anim legyen
-        if (moveZ < 0f)
+        // Nem aim módban a hátra gomb forward anim
+        if (!isAiming && moveZ < 0f)
         {
             animMoveZ = 1f;
         }
@@ -396,40 +396,13 @@ public class tps_player : MonoBehaviour
                 Vector3.zero;
         }
 
-        // RÉGI TPS forgás mozgási irány alapján
-        if (rotateToMovement)
+        // AIM TPS
+        if (isAiming)
         {
-            if (currentMoveDirection.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(
-                        currentMoveDirection
-                    );
-
-                transform.rotation =
-                    Quaternion.Slerp(
-                        transform.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.deltaTime
-                    );
-            }
-        }
-
-        // ÚJ TPS forgás kamera irányába
-        if (rotateToCamera)
-        {
-            float targetYaw = cameraYaw;
-
-            // S gombnál forduljon meg
-            if (Input.GetKey(KeyCode.S))
-            {
-                targetYaw += 180f;
-            }
-
             Quaternion cameraRotation =
                 Quaternion.Euler(
                     0f,
-                    targetYaw,
+                    cameraYaw,
                     0f
                 );
 
@@ -439,6 +412,27 @@ public class tps_player : MonoBehaviour
                     cameraRotation,
                     cameraTurnSmooth * Time.deltaTime
                 );
+        }
+        // NORMAL TPS
+        else
+        {
+            if (rotateToMovement)
+            {
+                if (currentMoveDirection.sqrMagnitude > 0.01f)
+                {
+                    Quaternion targetRotation =
+                        Quaternion.LookRotation(
+                            currentMoveDirection
+                        );
+
+                    transform.rotation =
+                        Quaternion.Slerp(
+                            transform.rotation,
+                            targetRotation,
+                            rotationSpeed * Time.deltaTime
+                        );
+                }
+            }
         }
 
         // TURN ANIMATION
@@ -463,7 +457,7 @@ public class tps_player : MonoBehaviour
         }
 
         // Mozgás közben ne turn anim legyen
-        if (isMoving)
+        if (isMoving || isAiming)
         {
             targetTurn = 0f;
         }
