@@ -8,22 +8,31 @@ public class tps_player : MonoBehaviour
     public float runMultiplier = 2f;
 
     [Header("Rotation")]
+
+    // Régi TPS forgás mozgás irányába
+    public bool rotateToMovement = true;
+
+    // ÚJ TPS forgás kamera irányába
+    public bool rotateToCamera = true;
+
+    // Movement rotation smooth
     public float rotationSpeed = 10f;
 
-    [Header("Camera Rotation")]
+    // Camera rotation smooth
     public float cameraTurnSmooth = 4f;
 
     [Header("Turn Animation")]
     public float turnAnimationSmooth = 8f;
 
-    [Header("Physics")]
     public float gravityForce = 25f;
     public float airControl = 0.65f;
     public float movementSmoothTime = 0.08f;
 
     [Header("Jump")]
     public float jumpHeight = 2.2f;
+    public float jumpDuration = 0.65f;
     public float jumpForwardMultiplier = 2f;
+    public float jumpMomentumBlend = 6f;
     public float landingSnapForce = 25f;
 
     [Header("Shoot")]
@@ -40,8 +49,6 @@ public class tps_player : MonoBehaviour
     private bool isShooting = false;
 
     private Animator animator;
-    private Rigidbody rb;
-    private NPCHealth npcHealth;
 
     private float speedVelocity;
     private float currentSpeed;
@@ -56,19 +63,25 @@ public class tps_player : MonoBehaviour
 
     private Vector3 jumpHorizontalVelocity;
 
-    // Camera
+    // Kamera yaw
     private float cameraYaw;
 
-    // Turn Animation
+    // TURN SYSTEM
     private float lastCameraYaw;
     private float currentTurnValue;
     private float turnVelocity;
 
+    // NPC Health
+    private NPCHealth npcHealth;
+
+    // Rigidbody
+    private Rigidbody rb;
+
     void Start()
     {
         animator = GetComponent<Animator>();
-        rb = GetComponent<Rigidbody>();
         npcHealth = GetComponent<NPCHealth>();
+        rb = GetComponent<Rigidbody>();
 
         lastCameraYaw = cameraYaw;
     }
@@ -134,28 +147,15 @@ public class tps_player : MonoBehaviour
         float moveX = 0f;
         float moveZ = 0f;
 
-        // W
         if (Input.GetKey(KeyCode.W))
             moveZ += 1f;
 
-        // S = megfordulás
         if (Input.GetKey(KeyCode.S))
-        {
-            Vector3 backwardDir =
-                Quaternion.Euler(0f, cameraYaw, 0f) *
-                -Vector3.forward;
+            moveZ -= 1f;
 
-            backwardDir.y = 0f;
-            backwardDir.Normalize();
-
-            return backwardDir;
-        }
-
-        // A
         if (Input.GetKey(KeyCode.A))
             moveX -= 1f;
 
-        // D
         if (Input.GetKey(KeyCode.D))
             moveX += 1f;
 
@@ -172,6 +172,18 @@ public class tps_player : MonoBehaviour
 
         camForward.Normalize();
         camRight.Normalize();
+
+        // S gomb → forduljon meg
+        if (moveZ < 0f)
+        {
+            camForward *= -1f;
+
+            // ne lehessen hátra strafelni
+            moveX = 0f;
+
+            // mindig forward motion legyen
+            moveZ = 1f;
+        }
 
         Vector3 moveDir =
             camForward * moveZ +
@@ -223,13 +235,17 @@ public class tps_player : MonoBehaviour
             moveZ += 1f;
 
         if (Input.GetKey(KeyCode.S))
-            moveZ += 1f;
+            moveZ -= 1f;
 
         if (Input.GetKey(KeyCode.A))
             moveX -= 1f;
 
         if (Input.GetKey(KeyCode.D))
             moveX += 1f;
+
+        // hátra strafe tiltás
+        if (moveZ < 0)
+            moveX = 0f;
 
         bool isMoving =
             moveX != 0 || moveZ != 0;
@@ -251,6 +267,14 @@ public class tps_player : MonoBehaviour
 
         animator.SetFloat("Speed", currentSpeed);
 
+        float animMoveZ = moveZ;
+
+        // S gombnál is forward anim legyen
+        if (moveZ < 0f)
+        {
+            animMoveZ = 1f;
+        }
+
         float smoothX = Mathf.SmoothDamp(
             animator.GetFloat("MoveX"),
             moveX,
@@ -260,7 +284,7 @@ public class tps_player : MonoBehaviour
 
         float smoothZ = Mathf.SmoothDamp(
             animator.GetFloat("MoveZ"),
-            moveZ,
+            animMoveZ,
             ref moveZVelocity,
             0.05f
         );
@@ -284,7 +308,7 @@ public class tps_player : MonoBehaviour
             ? moveSpeed * runMultiplier
             : moveSpeed;
 
-        // Gravity
+        // GRAVITY
         if (!IsGrounded() || verticalVelocity > 0f)
         {
             verticalVelocity -=
@@ -297,7 +321,7 @@ public class tps_player : MonoBehaviour
 
         Vector3 horizontalVelocity;
 
-        // Air Control
+        // AIR CONTROL TPS STYLE
         if (isJumping)
         {
             Vector3 desiredAirVelocity =
@@ -330,7 +354,7 @@ public class tps_player : MonoBehaviour
         transform.position +=
             finalVelocity * Time.deltaTime;
 
-        // Ground Snap
+        // TALAJ SNAP
         if (!isJumping &&
             verticalVelocity <= 0f)
         {
@@ -358,7 +382,7 @@ public class tps_player : MonoBehaviour
             }
         }
 
-        // Rigidbody Stabilizer
+        // Rigidbody stabil
         if (rb != null)
         {
             rb.linearVelocity =
@@ -372,23 +396,53 @@ public class tps_player : MonoBehaviour
                 Vector3.zero;
         }
 
-        // Rotation
-        if (currentMoveDirection.sqrMagnitude > 0.01f)
+        // RÉGI TPS forgás mozgási irány alapján
+        if (rotateToMovement)
         {
-            Quaternion targetRotation =
-                Quaternion.LookRotation(
-                    currentMoveDirection
+            if (currentMoveDirection.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRotation =
+                    Quaternion.LookRotation(
+                        currentMoveDirection
+                    );
+
+                transform.rotation =
+                    Quaternion.Slerp(
+                        transform.rotation,
+                        targetRotation,
+                        rotationSpeed * Time.deltaTime
+                    );
+            }
+        }
+
+        // ÚJ TPS forgás kamera irányába
+        if (rotateToCamera)
+        {
+            float targetYaw = cameraYaw;
+
+            // S gombnál forduljon meg
+            if (Input.GetKey(KeyCode.S))
+            {
+                targetYaw += 180f;
+            }
+
+            Quaternion cameraRotation =
+                Quaternion.Euler(
+                    0f,
+                    targetYaw,
+                    0f
                 );
 
             transform.rotation =
                 Quaternion.Slerp(
                     transform.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.deltaTime
+                    cameraRotation,
+                    cameraTurnSmooth * Time.deltaTime
                 );
         }
 
         // TURN ANIMATION
+
         float yawDelta =
             Mathf.DeltaAngle(
                 lastCameraYaw,
@@ -397,15 +451,18 @@ public class tps_player : MonoBehaviour
 
         float targetTurn = 0f;
 
+        // Jobbra
         if (yawDelta > 0.1f)
         {
             targetTurn = 1f;
         }
+        // Balra
         else if (yawDelta < -0.1f)
         {
             targetTurn = -1f;
         }
 
+        // Mozgás közben ne turn anim legyen
         if (isMoving)
         {
             targetTurn = 0f;
@@ -438,6 +495,7 @@ public class tps_player : MonoBehaviour
                 yield break;
             }
 
+            // Land detection
             if (verticalVelocity <= 0f &&
                 IsGrounded())
             {
@@ -447,7 +505,7 @@ public class tps_player : MonoBehaviour
             yield return null;
         }
 
-        // Snap to ground
+        // Ground snap
         if (Physics.Raycast(
             transform.position + Vector3.up * 2f,
             Vector3.down,
