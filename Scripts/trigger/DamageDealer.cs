@@ -30,16 +30,6 @@ public class DamageDealer : MonoBehaviour
         }
     }
 
-    private void FixedUpdate()
-    {
-        // Ha meghalt → velocity nullázás
-        if (IsDead() && rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-    }
-
     bool IsDead()
     {
         if (playerHealth != null &&

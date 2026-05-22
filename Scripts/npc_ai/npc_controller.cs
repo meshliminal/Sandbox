@@ -10,11 +10,20 @@ public class npc_controller : MonoBehaviour
     public Rigidbody[] ragdollRigidbodies; // A karakterben található összes Rigidbody
     public Collider[] ragdollColliders;    // A karakterben található összes Collider
 
+    [Header("Main Collider")]
+    public CapsuleCollider mainCapsuleCollider;
+
     void Start()
     {
         // Keressük a Rigidbody-kat és Collider-eket a karakter gyerekobjektumai között
         ragdollRigidbodies = character.GetComponentsInChildren<Rigidbody>(true);
         ragdollColliders = character.GetComponentsInChildren<Collider>(true);
+
+        // Ha nincs kézzel beállítva, automatikusan megkeresi
+        if (mainCapsuleCollider == null)
+        {
+            mainCapsuleCollider = GetComponent<CapsuleCollider>();
+        }
 
         // Alapértelmezett állapot: ragdoll kikapcsolva
         EnableRagdoll(false);
@@ -36,7 +45,13 @@ public class npc_controller : MonoBehaviour
         // Collider-ek engedélyezése/kikapcsolása
         foreach (var col in ragdollColliders)
         {
-            //col.enabled = enable;
+            // col.enabled = enable;
+        }
+
+        // Fõ Capsule Collider kezelése
+        if (mainCapsuleCollider != null)
+        {
+            mainCapsuleCollider.enabled = !enable;
         }
 
         // Animator állapota
@@ -45,12 +60,12 @@ public class npc_controller : MonoBehaviour
 
     public void ActivateRagdoll()
     {
-        //Debug.Log("Ragdoll Activated"); 
-        EnableRagdoll(true); 
+        // Debug.Log("Ragdoll Activated");
+        EnableRagdoll(true);
     }
 
     public void DeactivateRagdoll()
     {
         EnableRagdoll(false);
     }
-}
+} 

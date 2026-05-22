@@ -1,18 +1,18 @@
-﻿using System.Collections;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class Weapon_Glock : MonoBehaviour
 {
     [Header("Weapon")]
     public float bulletRange = 50f;
-    public float fireRate = 0.06f;
-    public float raycastForce = 15f;
-    public float reloadTime = 2f;
-    public int magazineSize = 30;
+
+    // Brutál gyors fire rate
+    public float fireRate = 0.005f;
 
     [Header("Bullet")]
     public GameObject bulletPrefab;
-    public float bulletSpeed = 1000f;
+
+    // Lassabb bullet hogy látszódjon
+    public float bulletSpeed = 80f;
 
     [Header("References")]
     public Transform firePoint;
@@ -30,47 +30,23 @@ public class Weapon_Glock : MonoBehaviour
     public GameObject smokePrefab;
 
     public float smokeDuration = 3f;
-    public float debrisForce = 2f;
 
     [Header("Animation")]
     public Animator animator;
 
-    private int currentAmmo;
-    private bool isReloading = false;
     private float nextFireTime = 0f;
-
-    void Start()
-    {
-        currentAmmo = magazineSize;
-    }
 
     void Update()
     {
-        if (isReloading)
-            return;
-
-        if (currentAmmo <= 0)
-        {
-            StartCoroutine(Reload());
-            return;
-        }
-
-        // AUTO FIRE
-
-        if (Input.GetButton("Fire1") &&
-            Time.time >= nextFireTime)
+        if (
+            Input.GetButton("Fire1") &&
+            Time.time >= nextFireTime
+        )
         {
             nextFireTime =
                 Time.time + fireRate;
 
             ShootRaycast();
-
-            // animator.SetTrigger("Shooting");
-        }
-
-        if (Input.GetButtonDown("Reload"))
-        {
-            StartCoroutine(Reload());
         }
     }
 
@@ -79,8 +55,6 @@ public class Weapon_Glock : MonoBehaviour
         bool aiming =
             tpsCamera != null &&
             tpsCamera.IsAiming();
-
-        // M4/TPS spray
 
         float sprayFactor =
             aiming
@@ -105,35 +79,42 @@ public class Weapon_Glock : MonoBehaviour
                 )
             );
 
-        Ray ray = new Ray(
-            Camera.main.transform.position,
+        Ray ray =
+            new Ray(
+                Camera.main.transform.position,
 
-            Camera.main.transform.forward +
-            sprayOffset
+                Camera.main.transform.forward +
+                sprayOffset
+            );
+
+        Debug.DrawRay(
+            ray.origin,
+            ray.direction * bulletRange,
+            Color.red,
+            0.2f
         );
 
         RaycastHit hit;
 
         int layerMask =
             ~LayerMask.GetMask(
-                "Trigger"
+                "Trigger",
+                "disabled_ragdoll",
+                "npc_controller"
             );
 
         Vector3 bulletDirection =
             Camera.main.transform.forward;
 
-        if (Physics.Raycast(
-            ray,
-            out hit,
-            bulletRange,
-            layerMask
-        ))
+        if (
+            Physics.Raycast(
+                ray,
+                out hit,
+                bulletRange,
+                layerMask
+            )
+        )
         {
-            Debug.Log(
-                "Eltalált objektum: " +
-                hit.collider.gameObject.name
-            );
-
             bulletDirection =
                 (
                     hit.point -
@@ -151,8 +132,6 @@ public class Weapon_Glock : MonoBehaviour
         );
 
         EjectCasing();
-
-        currentAmmo--;
     }
 
     void ShootBullet(
@@ -186,8 +165,7 @@ public class Weapon_Glock : MonoBehaviour
 
         Destroy(
             bullet,
-            bulletRange /
-            bulletSpeed
+            3f
         );
     }
 
@@ -206,6 +184,7 @@ public class Weapon_Glock : MonoBehaviour
             damage = 100;
         }
 
+        // NPC HIT
         if (
             hit.collider.CompareTag(
                 "npc_controller"
@@ -226,48 +205,74 @@ public class Weapon_Glock : MonoBehaviour
             GameObject rootParentObject =
                 currentParent.gameObject;
 
+            // NPC sebzés
             ApplyDamageToNPC(
                 rootParentObject,
                 damage
+            );
+
+            // Ragdoll stabilizálás
+            Rigidbody[] allRigidbodies =
+                rootParentObject
+                .GetComponentsInChildren<Rigidbody>();
+
+            foreach (Rigidbody rb in allRigidbodies)
+            {
+                if (rb == null)
+                    continue;
+
+                // Ne repüljön el
+                rb.linearVelocity *= 0.15f;
+                rb.angularVelocity *= 0.15f;
+
+                // Stabilabb fizika
+                rb.maxAngularVelocity = 10f;
+                rb.maxDepenetrationVelocity = 1f;
+
+                rb.interpolation =
+                    RigidbodyInterpolation.Interpolate;
+
+                rb.collisionDetectionMode =
+                    CollisionDetectionMode.ContinuousDynamic;
+            }
+
+            SpawnSparks(
+                hit.point,
+                hit.normal
+            );
+
+            // NPC-re NINCS force
+            return;
+        }
+
+        // NEM NPC object
+        Rigidbody hitRb =
+            hit.collider
+            .GetComponent<Rigidbody>();
+
+        if (hitRb != null)
+        {
+            hitRb.AddForce(
+                bulletDirection * 2f,
+                ForceMode.Impulse
+            );
+        }
+        else
+        {
+            SpawnSmoke(
+                hit.point,
+                hit.normal
             );
 
             SpawnSparks(
                 hit.point,
                 hit.normal
             );
-        }
-        else
-        {
-            Rigidbody hitRb =
-                hit.collider
-                .GetComponent<Rigidbody>();
 
-            if (hitRb != null)
-            {
-                hitRb.AddForce(
-                    bulletDirection *
-                    raycastForce,
-
-                    ForceMode.Impulse
-                );
-            }
-            else
-            {
-                SpawnSmoke(
-                    hit.point,
-                    hit.normal
-                );
-
-                SpawnSparks(
-                    hit.point,
-                    hit.normal
-                );
-
-                SpawnDebris(
-                    hit.point,
-                    hit.normal
-                );
-            }
+            SpawnDebris(
+                hit.point,
+                hit.normal
+            );
         }
     }
 
@@ -283,12 +288,6 @@ public class Weapon_Glock : MonoBehaviour
         {
             npcHealth.TakeDamage(
                 damage
-            );
-        }
-        else
-        {
-            Debug.LogError(
-                "NPCHealth hiányzik!"
             );
         }
     }
@@ -386,56 +385,43 @@ public class Weapon_Glock : MonoBehaviour
         Rigidbody casingRb =
             casing.GetComponent<Rigidbody>();
 
-        Vector3 ejectDir =
-            casingEjectPoint.right +
+        if (casingRb != null)
+        {
+            Vector3 ejectDir =
+                casingEjectPoint.right +
 
-            new Vector3(
-                Random.Range(
-                    -0.2f,
-                    0.2f
-                ),
+                new Vector3(
+                    Random.Range(
+                        -0.2f,
+                        0.2f
+                    ),
 
-                Random.Range(
-                    0.1f,
-                    0.3f
-                ),
+                    Random.Range(
+                        0.1f,
+                        0.3f
+                    ),
 
-                Random.Range(
-                    -0.2f,
-                    0.2f
-                )
+                    Random.Range(
+                        -0.2f,
+                        0.2f
+                    )
+                );
+
+            casingRb.AddForce(
+                ejectDir * 2f,
+                ForceMode.Impulse
             );
 
-        casingRb.AddForce(
-            ejectDir * 2f,
-            ForceMode.Impulse
-        );
-
-        casingRb.AddTorque(
-            Random.insideUnitSphere *
-            5f,
-
-            ForceMode.Impulse
-        );
+            casingRb.AddTorque(
+                Random.insideUnitSphere *
+                5f,
+                ForceMode.Impulse
+            );
+        }
 
         Destroy(
             casing,
             5f
         );
-    }
-
-    IEnumerator Reload()
-    {
-        isReloading = true;
-
-        yield return
-            new WaitForSeconds(
-                reloadTime
-            );
-
-        currentAmmo =
-            magazineSize;
-
-        isReloading = false;
     }
 }
