@@ -43,6 +43,14 @@ public class tps_player : MonoBehaviour
     [Header("Height Offset")]
     public float yOffset = 0f;
 
+    [Header("Spine Aim")]
+    public Transform spine;
+    public Transform chest;
+
+    public float maxLookUp = 40f;
+    public float maxLookDown = -30f;
+    public float spineSmooth = 8f;
+
     private bool isJumping = false;
     private bool isShooting = false;
 
@@ -64,6 +72,9 @@ public class tps_player : MonoBehaviour
     // Kamera yaw
     private float cameraYaw;
 
+    // Kamera pitch
+    private float cameraPitch;
+
     // TURN SYSTEM
     private float lastCameraYaw;
     private float currentTurnValue;
@@ -75,6 +86,12 @@ public class tps_player : MonoBehaviour
     // Rigidbody
     private Rigidbody rb;
 
+    // Spine
+    private Quaternion spineStartRot;
+    private Quaternion chestStartRot;
+
+    private float currentSpinePitch;
+
     void Start()
     {
         animator = GetComponent<Animator>();
@@ -82,6 +99,12 @@ public class tps_player : MonoBehaviour
         rb = GetComponent<Rigidbody>();
 
         lastCameraYaw = cameraYaw;
+
+        if (spine != null)
+            spineStartRot = spine.localRotation;
+
+        if (chest != null)
+            chestStartRot = chest.localRotation;
     }
 
     void Update()
@@ -125,9 +148,19 @@ public class tps_player : MonoBehaviour
         }
     }
 
+    void LateUpdate()
+    {
+        HandleSpineAim();
+    }
+
     public void SetCameraYaw(float yaw)
     {
         cameraYaw = yaw;
+    }
+
+    public void SetCameraPitch(float pitch)
+    {
+        cameraPitch = pitch;
     }
 
     bool IsGrounded()
@@ -476,6 +509,70 @@ public class tps_player : MonoBehaviour
         );
 
         lastCameraYaw = cameraYaw;
+    }
+
+    void HandleSpineAim()
+    {
+        if (spine == null || chest == null)
+            return;
+
+        float pitch = cameraPitch;
+
+        // Unity angle fix
+        if (pitch > 180f)
+            pitch -= 360f;
+
+        pitch = Mathf.Clamp(
+            pitch,
+            maxLookDown,
+            maxLookUp
+        );
+
+        currentSpinePitch =
+            Mathf.Lerp(
+                currentSpinePitch,
+                pitch,
+                spineSmooth * Time.deltaTime
+            );
+
+        if (isAiming)
+        {
+            Quaternion spineRot =
+                Quaternion.Euler(
+                    currentSpinePitch * 0.4f,
+                    0f,
+                    0f
+                );
+
+            Quaternion chestRot =
+                Quaternion.Euler(
+                    currentSpinePitch * 0.6f,
+                    0f,
+                    0f
+                );
+
+            spine.localRotation =
+                spineStartRot * spineRot;
+
+            chest.localRotation =
+                chestStartRot * chestRot;
+        }
+        else
+        {
+            spine.localRotation =
+                Quaternion.Slerp(
+                    spine.localRotation,
+                    spineStartRot,
+                    spineSmooth * Time.deltaTime
+                );
+
+            chest.localRotation =
+                Quaternion.Slerp(
+                    chest.localRotation,
+                    chestStartRot,
+                    spineSmooth * Time.deltaTime
+                );
+        }
     }
 
     IEnumerator JumpCoroutine()

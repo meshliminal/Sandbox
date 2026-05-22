@@ -236,12 +236,30 @@ public class Weapon_Glock : MonoBehaviour
                     CollisionDetectionMode.ContinuousDynamic;
             }
 
+            // Nagyon minimális vízszintes force
+            Vector3 flatForceDirection =
+                new Vector3(
+                    bulletDirection.x,
+                    0f,
+                    bulletDirection.z
+                ).normalized;
+
+            foreach (Rigidbody rb in allRigidbodies)
+            {
+                if (rb == null)
+                    continue;
+
+                rb.AddForce(
+                    flatForceDirection * 2f,
+                    ForceMode.Impulse
+                );
+            }
+
             SpawnSparks(
                 hit.point,
                 hit.normal
             );
 
-            // NPC-re NINCS force
             return;
         }
 

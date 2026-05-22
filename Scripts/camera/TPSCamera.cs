@@ -85,7 +85,6 @@ public class TPSCamera : MonoBehaviour
             normalOffset;
 
         // Crosshair induláskor rejtve
-
         if (crosshairObject != null)
         {
             crosshairObject.SetActive(false);
@@ -107,12 +106,10 @@ public class TPSCamera : MonoBehaviour
     void HandleAim()
     {
         // Aim csak jobb klikkre
-
         isAiming =
             Input.GetMouseButton(1);
 
         // Crosshair visibility
-
         if (crosshairObject != null)
         {
             crosshairObject.SetActive(isAiming);
@@ -152,7 +149,6 @@ public class TPSCamera : MonoBehaviour
         );
 
         // Smooth kamera rotáció
-
         currentYaw =
             Mathf.LerpAngle(
                 currentYaw,
@@ -169,10 +165,11 @@ public class TPSCamera : MonoBehaviour
                 rotationSmoothSpeed
             );
 
+        // PLAYER CAMERA VALUES
         if (playerController != null)
         {
-            playerController
-                .SetCameraYaw(currentYaw);
+            playerController.SetCameraYaw(currentYaw);
+            playerController.SetCameraPitch(currentPitch);
         }
     }
 
@@ -184,7 +181,6 @@ public class TPSCamera : MonoBehaviour
         if (scroll != 0f)
         {
             // Normál kamera zoom
-
             normalOffset.z +=
                 scroll * zoomSpeed;
 
@@ -196,7 +192,6 @@ public class TPSCamera : MonoBehaviour
                 );
 
             // Aim kamera zoom
-
             aimOffset.z +=
                 scroll * zoomSpeed;
 
@@ -239,19 +234,16 @@ public class TPSCamera : MonoBehaviour
 
         // Pivot alacsonyabban
         // hogy ne legyen magas a célzás
-
         Vector3 pivotPoint =
             playerTarget.position +
             Vector3.up * 1.45f;
 
         // Orbit kamera
-
         Vector3 desiredPosition =
             pivotPoint +
             rotation * currentOffset;
 
         // Collision
-
         Vector3 direction =
             desiredPosition -
             pivotPoint;
@@ -279,7 +271,6 @@ public class TPSCamera : MonoBehaviour
         }
 
         // Smooth kamera mozgás
-
         transform.position =
             Vector3.SmoothDamp(
                 transform.position,
@@ -289,7 +280,6 @@ public class TPSCamera : MonoBehaviour
             );
 
         // Smooth rotáció
-
         transform.rotation =
             Quaternion.Slerp(
                 transform.rotation,
@@ -307,5 +297,10 @@ public class TPSCamera : MonoBehaviour
     public float GetYaw()
     {
         return currentYaw;
+    }
+
+    public float GetPitch()
+    {
+        return currentPitch;
     }
 }
