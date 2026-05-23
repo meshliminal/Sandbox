@@ -5,13 +5,12 @@ public class Weapon_Glock : MonoBehaviour
     [Header("Weapon")]
     public float bulletRange = 50f;
 
-    // Brutál gyors fire rate
-    public float fireRate = 0.005f;
+    // Normálisabb fire rate
+    public float fireRate = 0.08f;
 
     [Header("Bullet")]
     public GameObject bulletPrefab;
 
-    // Lassabb bullet hogy látszódjon
     public float bulletSpeed = 80f;
 
     [Header("References")]
@@ -131,7 +130,16 @@ public class Weapon_Glock : MonoBehaviour
             bulletDirection
         );
 
+        // CSAK ITT ejectál casingot
         EjectCasing();
+
+        // Shoot anim
+        if (animator != null)
+        {
+            animator.SetTrigger(
+                "Shoot"
+            );
+        }
     }
 
     void ShootBullet(
@@ -205,13 +213,11 @@ public class Weapon_Glock : MonoBehaviour
             GameObject rootParentObject =
                 currentParent.gameObject;
 
-            // NPC sebzés
             ApplyDamageToNPC(
                 rootParentObject,
                 damage
             );
 
-            // Ragdoll stabilizálás
             Rigidbody[] allRigidbodies =
                 rootParentObject
                 .GetComponentsInChildren<Rigidbody>();
@@ -221,11 +227,9 @@ public class Weapon_Glock : MonoBehaviour
                 if (rb == null)
                     continue;
 
-                // Ne repüljön el
                 rb.linearVelocity *= 0.15f;
                 rb.angularVelocity *= 0.15f;
 
-                // Stabilabb fizika
                 rb.maxAngularVelocity = 10f;
                 rb.maxDepenetrationVelocity = 1f;
 
@@ -236,7 +240,6 @@ public class Weapon_Glock : MonoBehaviour
                     CollisionDetectionMode.ContinuousDynamic;
             }
 
-            // Nagyon minimális vízszintes force
             Vector3 flatForceDirection =
                 new Vector3(
                     bulletDirection.x,
@@ -263,7 +266,7 @@ public class Weapon_Glock : MonoBehaviour
             return;
         }
 
-        // NEM NPC object
+        // NEM NPC
         Rigidbody hitRb =
             hit.collider
             .GetComponent<Rigidbody>();
@@ -315,6 +318,9 @@ public class Weapon_Glock : MonoBehaviour
         Vector3 hitNormal
     )
     {
+        if (debrisPrefab == null)
+            return;
+
         float offset = 0.01f;
 
         Vector3 debrisPosition =
@@ -342,6 +348,9 @@ public class Weapon_Glock : MonoBehaviour
         Vector3 hitNormal
     )
     {
+        if (sparkPrefab == null)
+            return;
+
         float offset = 0.01f;
 
         Vector3 sparkPosition =
@@ -369,6 +378,9 @@ public class Weapon_Glock : MonoBehaviour
         Vector3 hitNormal
     )
     {
+        if (smokePrefab == null)
+            return;
+
         float offset = 0.01f;
 
         Vector3 smokePosition =
@@ -393,6 +405,12 @@ public class Weapon_Glock : MonoBehaviour
 
     void EjectCasing()
     {
+        if (
+            casingPrefab == null ||
+            casingEjectPoint == null
+        )
+            return;
+
         GameObject casing =
             Instantiate(
                 casingPrefab,
