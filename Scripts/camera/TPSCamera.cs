@@ -67,15 +67,12 @@ public class TPSCamera : MonoBehaviour
 
     void Start()
     {
-        Cursor.lockState =
-            CursorLockMode.Locked;
-
+        Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
         cam = Camera.main;
 
-        Vector3 angles =
-            transform.eulerAngles;
+        Vector3 angles = transform.eulerAngles;
 
         yaw = angles.y;
         pitch = angles.x;
@@ -83,10 +80,8 @@ public class TPSCamera : MonoBehaviour
         currentYaw = yaw;
         currentPitch = pitch;
 
-        currentOffset =
-            normalOffset;
+        currentOffset = normalOffset;
 
-        // Crosshair induláskor rejtve
         if (crosshairObject != null)
         {
             crosshairObject.SetActive(false);
@@ -107,67 +102,35 @@ public class TPSCamera : MonoBehaviour
 
     void HandleAim()
     {
-        // Aim csak jobb klikkre
-        isAiming =
-            Input.GetMouseButton(1);
+        isAiming = Input.GetMouseButton(1);
 
-        // Crosshair visibility
         if (crosshairObject != null)
-        {
             crosshairObject.SetActive(isAiming);
-        }
 
         Vector3 targetOffset =
-            isAiming
-            ? aimOffset
-            : normalOffset;
+            isAiming ? aimOffset : normalOffset;
 
         currentOffset =
             Vector3.Lerp(
                 currentOffset,
                 targetOffset,
-                Time.deltaTime *
-                aimSmoothSpeed
+                Time.deltaTime * aimSmoothSpeed
             );
     }
 
     void HandleMouseInput()
     {
-        float mouseX =
-            Input.GetAxis("Mouse X") *
-            mouseSensitivity;
-
-        float mouseY =
-            Input.GetAxis("Mouse Y") *
-            mouseSensitivity;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
         yaw += mouseX;
         pitch -= mouseY;
 
-        pitch = Mathf.Clamp(
-            pitch,
-            minYAngle,
-            maxYAngle
-        );
+        pitch = Mathf.Clamp(pitch, minYAngle, maxYAngle);
 
-        // Smooth kamera rotáció
-        currentYaw =
-            Mathf.LerpAngle(
-                currentYaw,
-                yaw,
-                Time.deltaTime *
-                rotationSmoothSpeed
-            );
+        currentYaw = Mathf.LerpAngle(currentYaw, yaw, Time.deltaTime * rotationSmoothSpeed);
+        currentPitch = Mathf.Lerp(currentPitch, pitch, Time.deltaTime * rotationSmoothSpeed);
 
-        currentPitch =
-            Mathf.Lerp(
-                currentPitch,
-                pitch,
-                Time.deltaTime *
-                rotationSmoothSpeed
-            );
-
-        // PLAYER CAMERA VALUES
         if (playerController != null)
         {
             playerController.SetCameraYaw(currentYaw);
@@ -177,133 +140,64 @@ public class TPSCamera : MonoBehaviour
 
     void HandleZoom()
     {
-        float scroll =
-            Input.mouseScrollDelta.y;
+        float scroll = Input.mouseScrollDelta.y;
 
         if (scroll != 0f)
         {
-            // Normál kamera zoom
-            normalOffset.z +=
-                scroll * zoomSpeed;
+            normalOffset.z += scroll * zoomSpeed;
+            normalOffset.z = Mathf.Clamp(normalOffset.z, -maxDistance, -minDistance);
 
-            normalOffset.z =
-                Mathf.Clamp(
-                    normalOffset.z,
-                    -maxDistance,
-                    -minDistance
-                );
-
-            // Aim kamera zoom
-            aimOffset.z +=
-                scroll * zoomSpeed;
-
-            aimOffset.z =
-                Mathf.Clamp(
-                    aimOffset.z,
-                    -6f,
-                    -1f
-                );
+            aimOffset.z += scroll * zoomSpeed;
+            aimOffset.z = Mathf.Clamp(aimOffset.z, -6f, -1f);
         }
     }
 
     void HandleFOV()
     {
-        if (cam == null)
-            return;
+        if (cam == null) return;
 
-        float targetFov =
-            isAiming
-            ? aimFov
-            : normalFov;
+        float targetFov = isAiming ? aimFov : normalFov;
 
         cam.fieldOfView =
-            Mathf.Lerp(
-                cam.fieldOfView,
-                targetFov,
-                Time.deltaTime *
-                fovSmooth
-            );
+            Mathf.Lerp(cam.fieldOfView, targetFov, Time.deltaTime * fovSmooth);
     }
 
     void MoveCamera()
     {
-        Quaternion rotation =
-            Quaternion.Euler(
-                currentPitch,
-                currentYaw,
-                0f
-            );
+        Quaternion rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
 
-        // Pivot alacsonyabban
-        // hogy ne legyen magas a célzás
-        Vector3 pivotPoint =
-            playerTarget.position +
-            Vector3.up * 1.45f;
+        Vector3 pivotPoint = playerTarget.position + Vector3.up * 1.45f;
 
-        // Orbit kamera
-        Vector3 desiredPosition =
-            pivotPoint +
-            rotation * currentOffset;
+        Vector3 desiredPosition = pivotPoint + rotation * currentOffset;
 
-        // Collision
-        Vector3 direction =
-            desiredPosition -
-            pivotPoint;
-
-        float distance =
-            direction.magnitude;
-
+        Vector3 direction = desiredPosition - pivotPoint;
+        float distance = direction.magnitude;
         direction.Normalize();
 
-        RaycastHit hit;
-
-        if (Physics.SphereCast(
-            pivotPoint,
-            collisionRadius,
-            direction,
-            out hit,
-            distance,
-            levelLayer
-        ))
+        if (Physics.SphereCast(pivotPoint, collisionRadius, direction, out RaycastHit hit, distance, levelLayer))
         {
-            desiredPosition =
-                hit.point -
-                direction *
-                collisionOffset;
+            desiredPosition = hit.point - direction * collisionOffset;
         }
 
-        // Smooth kamera mozgás
         transform.position =
-            Vector3.SmoothDamp(
-                transform.position,
-                desiredPosition,
-                ref positionVelocity,
-                positionSmoothTime
-            );
+            Vector3.SmoothDamp(transform.position, desiredPosition, ref positionVelocity, positionSmoothTime);
 
-        // Smooth rotáció
         transform.rotation =
-            Quaternion.Slerp(
-                transform.rotation,
-                rotation,
-                Time.deltaTime *
-                rotationSmoothSpeed
-            );
+            Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * rotationSmoothSpeed);
     }
 
-    public bool IsAiming()
+    // ✅ EZ AZ ÚJ FIX
+    public Ray GetAimRay()
     {
-        return isAiming;
+        return cam.ScreenPointToRay(
+            new Vector3(Screen.width / 2f, Screen.height / 2f, 0f)
+        );
     }
 
-    public float GetYaw()
-    {
-        return currentYaw;
-    }
+    public bool IsAiming() => isAiming;
 
-    public float GetPitch()
-    {
-        return currentPitch;
-    }
+    public float GetYaw() => currentYaw;
+
+    public float GetPitch() => currentPitch;
 }
 }
