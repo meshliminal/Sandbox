@@ -1,5 +1,7 @@
 using UnityEngine;
 
+namespace sandbox
+{
 public class DetachObject : MonoBehaviour
 {
     public GameObject objectToDetach; // Ezt a GameObjectet szeretnéd leválasztani.
@@ -33,4 +35,5 @@ public class DetachObject : MonoBehaviour
 
         Debug.Log($"{objectToDetach.name} sikeresen leválasztva, minden gyorsulás és erő nullázva!");
     }
+}
 }

@@ -1,5 +1,7 @@
 using UnityEngine;
 
+namespace sandbox
+{
 public class TPSCamera : MonoBehaviour
 {
     [Header("Targets")]
@@ -303,4 +305,5 @@ public class TPSCamera : MonoBehaviour
     {
         return currentPitch;
     }
+}
 }

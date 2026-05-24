@@ -1,8 +1,13 @@
 using System.Collections;
 using UnityEngine;
 
+namespace sandbox
+{
 public class tps_player : MonoBehaviour
 {
+    [Header("Animator")]
+    public Animator animator;
+
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float runMultiplier = 2f;
@@ -10,10 +15,7 @@ public class tps_player : MonoBehaviour
     [Header("Rotation")]
     public bool rotateToMovement = true;
 
-    // Movement rotation smooth
     public float rotationSpeed = 10f;
-
-    // Camera rotation smooth
     public float cameraTurnSmooth = 4f;
 
     [Header("Aim")]
@@ -28,9 +30,7 @@ public class tps_player : MonoBehaviour
 
     [Header("Jump")]
     public float jumpHeight = 2.2f;
-    public float jumpDuration = 0.65f;
     public float jumpForwardMultiplier = 2f;
-    public float jumpMomentumBlend = 6f;
     public float landingSnapForce = 25f;
 
     [Header("Shoot")]
@@ -51,10 +51,18 @@ public class tps_player : MonoBehaviour
     public float maxLookDown = -30f;
     public float spineSmooth = 8f;
 
+    [Header("Right/Left Hand IK")]
+    public Transform rightHandTarget;
+    public Transform leftHandTarget;
+
+    [Range(0f, 1f)] public float rightHandPositionWeight = 1f;
+    [Range(0f, 1f)] public float rightHandRotationWeight = 1f;
+
+    [Range(0f, 1f)] public float leftHandPositionWeight = 1f;
+    [Range(0f, 1f)] public float leftHandRotationWeight = 1f;
+
     private bool isJumping = false;
     private bool isShooting = false;
-
-    private Animator animator;
 
     private float speedVelocity;
     private float currentSpeed;
@@ -69,24 +77,16 @@ public class tps_player : MonoBehaviour
 
     private Vector3 jumpHorizontalVelocity;
 
-    // Kamera yaw
     private float cameraYaw;
-
-    // Kamera pitch
     private float cameraPitch;
 
-    // TURN SYSTEM
     private float lastCameraYaw;
     private float currentTurnValue;
     private float turnVelocity;
 
-    // NPC Health
     private NPCHealth npcHealth;
-
-    // Rigidbody
     private Rigidbody rb;
 
-    // Spine
     private Quaternion spineStartRot;
     private Quaternion chestStartRot;
 
@@ -94,7 +94,6 @@ public class tps_player : MonoBehaviour
 
     void Start()
     {
-        animator = GetComponent<Animator>();
         npcHealth = GetComponent<NPCHealth>();
         rb = GetComponent<Rigidbody>();
 
@@ -109,12 +108,9 @@ public class tps_player : MonoBehaviour
 
     void Update()
     {
-        // AIM
         isAiming = Input.GetMouseButton(1);
 
-        // Dead
-        if (npcHealth != null &&
-            npcHealth.currentHealth <= 0)
+        if (npcHealth != null && npcHealth.currentHealth <= 0)
         {
             animator.SetFloat("Speed", 0f);
             animator.SetFloat("MoveX", 0f);
@@ -132,20 +128,11 @@ public class tps_player : MonoBehaviour
 
         HandleMovement();
 
-        // Jump
-        if (Input.GetKeyDown(KeyCode.Space) &&
-            !isJumping &&
-            IsGrounded())
-        {
+        if (Input.GetKeyDown(KeyCode.Space) && !isJumping && IsGrounded())
             StartJump();
-        }
 
-        // Shoot
-        if (Input.GetKeyDown(KeyCode.E) &&
-            !isShooting)
-        {
+        if (Input.GetKeyDown(KeyCode.E) && !isShooting)
             StartCoroutine(Shoot());
-        }
     }
 
     void LateUpdate()
@@ -153,27 +140,14 @@ public class tps_player : MonoBehaviour
         HandleSpineAim();
     }
 
-    public void SetCameraYaw(float yaw)
-    {
-        cameraYaw = yaw;
-    }
-
-    public void SetCameraPitch(float pitch)
-    {
-        cameraPitch = pitch;
-    }
+    public void SetCameraYaw(float yaw) => cameraYaw = yaw;
+    public void SetCameraPitch(float pitch) => cameraPitch = pitch;
 
     bool IsGrounded()
     {
-        Vector3 origin =
-            transform.position + Vector3.up * 0.25f;
+        Vector3 origin = transform.position + Vector3.up * 0.25f;
 
-        return Physics.Raycast(
-            origin,
-            Vector3.down,
-            groundCheckDistance,
-            groundMask
-        );
+        return Physics.Raycast(origin, Vector3.down, groundCheckDistance, groundMask);
     }
 
     Vector3 GetInputDirection()
@@ -181,25 +155,13 @@ public class tps_player : MonoBehaviour
         float moveX = 0f;
         float moveZ = 0f;
 
-        if (Input.GetKey(KeyCode.W))
-            moveZ += 1f;
+        if (Input.GetKey(KeyCode.W)) moveZ += 1f;
+        if (Input.GetKey(KeyCode.S)) moveZ -= 1f;
+        if (Input.GetKey(KeyCode.A)) moveX -= 1f;
+        if (Input.GetKey(KeyCode.D)) moveX += 1f;
 
-        if (Input.GetKey(KeyCode.S))
-            moveZ -= 1f;
-
-        if (Input.GetKey(KeyCode.A))
-            moveX -= 1f;
-
-        if (Input.GetKey(KeyCode.D))
-            moveX += 1f;
-
-        Vector3 camForward =
-            Quaternion.Euler(0f, cameraYaw, 0f) *
-            Vector3.forward;
-
-        Vector3 camRight =
-            Quaternion.Euler(0f, cameraYaw, 0f) *
-            Vector3.right;
+        Vector3 camForward = Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward;
+        Vector3 camRight = Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.right;
 
         camForward.y = 0f;
         camRight.y = 0f;
@@ -207,51 +169,29 @@ public class tps_player : MonoBehaviour
         camForward.Normalize();
         camRight.Normalize();
 
-        // NEM AIM módban:
-        // hátra gombnál forduljon meg
         if (!isAiming && moveZ < 0f)
         {
             camForward *= -1f;
-
             moveX = 0f;
-
             moveZ = 1f;
         }
 
-        Vector3 moveDir =
-            camForward * moveZ +
-            camRight * moveX;
-
-        return moveDir.normalized;
+        return (camForward * moveZ + camRight * moveX).normalized;
     }
 
     void StartJump()
     {
         isJumping = true;
-
         animator.SetTrigger("Jump");
 
-        bool isRunning =
-            Input.GetKey(KeyCode.LeftShift);
+        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        float speed = isRunning ? moveSpeed * runMultiplier : moveSpeed;
 
-        float currentMoveSpeed =
-            isRunning
-            ? moveSpeed * runMultiplier
-            : moveSpeed;
+        Vector3 dir = GetInputDirection();
 
-        Vector3 inputDir = GetInputDirection();
+        jumpHorizontalVelocity = dir * speed * jumpForwardMultiplier;
 
-        jumpHorizontalVelocity =
-            inputDir *
-            currentMoveSpeed *
-            jumpForwardMultiplier;
-
-        verticalVelocity =
-            Mathf.Sqrt(
-                jumpHeight *
-                gravityForce *
-                2f
-            );
+        verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
 
         StartCoroutine(JumpCoroutine());
     }
@@ -261,317 +201,146 @@ public class tps_player : MonoBehaviour
         float moveX = 0f;
         float moveZ = 0f;
 
-        bool isRunning =
-            Input.GetKey(KeyCode.LeftShift);
+        bool isRunning = Input.GetKey(KeyCode.LeftShift);
 
-        if (Input.GetKey(KeyCode.W))
-            moveZ += 1f;
+        if (Input.GetKey(KeyCode.W)) moveZ += 1f;
+        if (Input.GetKey(KeyCode.S)) moveZ -= 1f;
+        if (Input.GetKey(KeyCode.A)) moveX -= 1f;
+        if (Input.GetKey(KeyCode.D)) moveX += 1f;
 
-        if (Input.GetKey(KeyCode.S))
-            moveZ -= 1f;
-
-        if (Input.GetKey(KeyCode.A))
-            moveX -= 1f;
-
-        if (Input.GetKey(KeyCode.D))
-            moveX += 1f;
-
-        // csak nem aim módban tiltjuk
-        if (!isAiming && moveZ < 0)
+        if (!isAiming && moveZ < 0f)
             moveX = 0f;
 
-        bool isMoving =
-            moveX != 0 || moveZ != 0;
+        bool isMoving = moveX != 0 || moveZ != 0;
 
-        float targetSpeed = 0f;
+        float targetSpeed = isMoving ? (isRunning ? 2f : 1f) : 0f;
 
-        if (isMoving)
-        {
-            targetSpeed =
-                isRunning ? 2f : 1f;
-        }
-
-        currentSpeed = Mathf.SmoothDamp(
-            currentSpeed,
-            targetSpeed,
-            ref speedVelocity,
-            0.1f
-        );
+        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedVelocity, 0.1f);
 
         animator.SetFloat("Speed", currentSpeed);
 
+        // =========================
+        // AIM STRAFE FIX (CORE)
+        // =========================
+        float animMoveX = moveX;
         float animMoveZ = moveZ;
 
-        // Nem aim módban a hátra gomb forward anim
-        if (!isAiming && moveZ < 0f)
+        if (isAiming)
         {
-            animMoveZ = 1f;
+            // X axis: -1 / 0 / 1
+            if (moveX > 0f) animMoveX = 1f;
+            else if (moveX < 0f) animMoveX = -1f;
+            else animMoveX = 0f;
+
+            // Z axis: ONLY forward or idle (NO 111 BUG)
+            animMoveZ = (moveZ > 0f || moveX != 0f) ? 1f : 0f;
+        }
+        else
+        {
+            if (moveZ < 0f)
+                animMoveZ = 1f;
         }
 
-        float smoothX = Mathf.SmoothDamp(
-            animator.GetFloat("MoveX"),
-            moveX,
-            ref moveXVelocity,
-            0.05f
-        );
-
-        float smoothZ = Mathf.SmoothDamp(
-            animator.GetFloat("MoveZ"),
-            animMoveZ,
-            ref moveZVelocity,
-            0.05f
-        );
+        float smoothX = Mathf.SmoothDamp(animator.GetFloat("MoveX"), animMoveX, ref moveXVelocity, 0.05f);
+        float smoothZ = Mathf.SmoothDamp(animator.GetFloat("MoveZ"), animMoveZ, ref moveZVelocity, 0.05f);
 
         animator.SetFloat("MoveX", smoothX);
         animator.SetFloat("MoveZ", smoothZ);
 
-        Vector3 targetMoveDir =
-            GetInputDirection();
+        Vector3 targetDir = GetInputDirection();
 
-        currentMoveDirection =
-            Vector3.SmoothDamp(
-                currentMoveDirection,
-                targetMoveDir,
-                ref moveDirectionVelocity,
-                movementSmoothTime
-            );
-
-        float currentMoveSpeed =
-            isRunning
-            ? moveSpeed * runMultiplier
-            : moveSpeed;
-
-        // GRAVITY
-        if (!IsGrounded() || verticalVelocity > 0f)
-        {
-            verticalVelocity -=
-                gravityForce * Time.deltaTime;
-        }
-        else if (!isJumping)
-        {
-            verticalVelocity = -2f;
-        }
-
-        Vector3 horizontalVelocity;
-
-        // AIR CONTROL TPS STYLE
-        if (isJumping)
-        {
-            Vector3 desiredAirVelocity =
-                currentMoveDirection *
-                currentMoveSpeed *
-                jumpForwardMultiplier;
-
-            jumpHorizontalVelocity =
-                Vector3.Lerp(
-                    jumpHorizontalVelocity,
-                    desiredAirVelocity,
-                    airControl * Time.deltaTime * 10f
-                );
-
-            horizontalVelocity =
-                jumpHorizontalVelocity;
-        }
-        else
-        {
-            horizontalVelocity =
-                currentMoveDirection *
-                currentMoveSpeed;
-        }
-
-        Vector3 finalVelocity =
-            horizontalVelocity;
-
-        finalVelocity.y = verticalVelocity;
-
-        transform.position +=
-            finalVelocity * Time.deltaTime;
-
-        // TALAJ SNAP
-        if (!isJumping &&
-            verticalVelocity <= 0f)
-        {
-            if (Physics.Raycast(
-                transform.position + Vector3.up,
-                Vector3.down,
-                out RaycastHit snapHit,
-                3f,
-                groundMask))
-            {
-                float targetY =
-                    snapHit.point.y + yOffset;
-
-                transform.position =
-                    Vector3.Lerp(
-                        transform.position,
-                        new Vector3(
-                            transform.position.x,
-                            targetY,
-                            transform.position.z
-                        ),
-                        landingSnapForce *
-                        Time.deltaTime
-                    );
-            }
-        }
-
-        // Rigidbody stabil
-        if (rb != null)
-        {
-            rb.linearVelocity =
-                new Vector3(
-                    0f,
-                    rb.linearVelocity.y,
-                    0f
-                );
-
-            rb.angularVelocity =
-                Vector3.zero;
-        }
-
-        // AIM TPS
-        if (isAiming)
-        {
-            Quaternion cameraRotation =
-                Quaternion.Euler(
-                    0f,
-                    cameraYaw,
-                    0f
-                );
-
-            transform.rotation =
-                Quaternion.Slerp(
-                    transform.rotation,
-                    cameraRotation,
-                    cameraTurnSmooth * Time.deltaTime
-                );
-        }
-        // NORMAL TPS
-        else
-        {
-            if (rotateToMovement)
-            {
-                if (currentMoveDirection.sqrMagnitude > 0.01f)
-                {
-                    Quaternion targetRotation =
-                        Quaternion.LookRotation(
-                            currentMoveDirection
-                        );
-
-                    transform.rotation =
-                        Quaternion.Slerp(
-                            transform.rotation,
-                            targetRotation,
-                            rotationSpeed * Time.deltaTime
-                        );
-                }
-            }
-        }
-
-        // TURN ANIMATION
-
-        float yawDelta =
-            Mathf.DeltaAngle(
-                lastCameraYaw,
-                cameraYaw
-            );
-
-        float targetTurn = 0f;
-
-        // Jobbra
-        if (yawDelta > 0.1f)
-        {
-            targetTurn = 1f;
-        }
-        // Balra
-        else if (yawDelta < -0.1f)
-        {
-            targetTurn = -1f;
-        }
-
-        // Mozgás közben ne turn anim legyen
-        if (isMoving || isAiming)
-        {
-            targetTurn = 0f;
-        }
-
-        currentTurnValue =
-            Mathf.SmoothDamp(
-                currentTurnValue,
-                targetTurn,
-                ref turnVelocity,
-                1f / turnAnimationSmooth
-            );
-
-        animator.SetFloat(
-            "Turn",
-            currentTurnValue
+        currentMoveDirection = Vector3.SmoothDamp(
+            currentMoveDirection,
+            targetDir,
+            ref moveDirectionVelocity,
+            movementSmoothTime
         );
 
-        lastCameraYaw = cameraYaw;
+        float speed = isRunning ? moveSpeed * runMultiplier : moveSpeed;
+
+        if (!IsGrounded() || verticalVelocity > 0f)
+            verticalVelocity -= gravityForce * Time.deltaTime;
+        else if (!isJumping)
+            verticalVelocity = -2f;
+
+        Vector3 horizontal;
+
+        if (isJumping)
+        {
+            Vector3 desired = currentMoveDirection * speed * jumpForwardMultiplier;
+
+            jumpHorizontalVelocity = Vector3.Lerp(
+                jumpHorizontalVelocity,
+                desired,
+                airControl * Time.deltaTime * 10f
+            );
+
+            horizontal = jumpHorizontalVelocity;
+        }
+        else
+        {
+            horizontal = currentMoveDirection * speed;
+        }
+
+        Vector3 final = horizontal;
+        final.y = verticalVelocity;
+
+        transform.position += final * Time.deltaTime;
+
+        if (!isJumping && verticalVelocity <= 0f)
+        {
+            if (Physics.Raycast(transform.position + Vector3.up, Vector3.down, out RaycastHit hit, 3f, groundMask))
+            {
+                float y = hit.point.y + yOffset;
+
+                transform.position = Vector3.Lerp(
+                    transform.position,
+                    new Vector3(transform.position.x, y, transform.position.z),
+                    landingSnapForce * Time.deltaTime
+                );
+            }
+        }
+
+        if (rb != null)
+        {
+            rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        if (isAiming)
+        {
+            Quaternion camRot = Quaternion.Euler(0f, cameraYaw, 0f);
+
+            transform.rotation = Quaternion.Slerp(transform.rotation, camRot, cameraTurnSmooth * Time.deltaTime);
+        }
+        else if (rotateToMovement && currentMoveDirection.sqrMagnitude > 0.01f)
+        {
+            Quaternion rot = Quaternion.LookRotation(currentMoveDirection);
+
+            transform.rotation = Quaternion.Slerp(transform.rotation, rot, rotationSpeed * Time.deltaTime);
+        }
     }
 
     void HandleSpineAim()
     {
-        if (spine == null || chest == null)
-            return;
+        if (spine == null || chest == null) return;
 
         float pitch = cameraPitch;
+        if (pitch > 180f) pitch -= 360f;
 
-        // Unity angle fix
-        if (pitch > 180f)
-            pitch -= 360f;
+        pitch = Mathf.Clamp(pitch, maxLookDown, maxLookUp);
 
-        pitch = Mathf.Clamp(
-            pitch,
-            maxLookDown,
-            maxLookUp
-        );
-
-        currentSpinePitch =
-            Mathf.Lerp(
-                currentSpinePitch,
-                pitch,
-                spineSmooth * Time.deltaTime
-            );
+        currentSpinePitch = Mathf.Lerp(currentSpinePitch, pitch, spineSmooth * Time.deltaTime);
 
         if (isAiming)
         {
-            Quaternion spineRot =
-                Quaternion.Euler(
-                    currentSpinePitch * 0.4f,
-                    0f,
-                    0f
-                );
-
-            Quaternion chestRot =
-                Quaternion.Euler(
-                    currentSpinePitch * 0.6f,
-                    0f,
-                    0f
-                );
-
-            spine.localRotation =
-                spineStartRot * spineRot;
-
-            chest.localRotation =
-                chestStartRot * chestRot;
+            spine.localRotation = spineStartRot * Quaternion.Euler(currentSpinePitch * 0.4f, 0f, 0f);
+            chest.localRotation = chestStartRot * Quaternion.Euler(currentSpinePitch * 0.6f, 0f, 0f);
         }
         else
         {
-            spine.localRotation =
-                Quaternion.Slerp(
-                    spine.localRotation,
-                    spineStartRot,
-                    spineSmooth * Time.deltaTime
-                );
-
-            chest.localRotation =
-                Quaternion.Slerp(
-                    chest.localRotation,
-                    chestStartRot,
-                    spineSmooth * Time.deltaTime
-                );
+            spine.localRotation = Quaternion.Slerp(spine.localRotation, spineStartRot, spineSmooth * Time.deltaTime);
+            chest.localRotation = Quaternion.Slerp(chest.localRotation, chestStartRot, spineSmooth * Time.deltaTime);
         }
     }
 
@@ -579,56 +348,55 @@ public class tps_player : MonoBehaviour
     {
         while (true)
         {
-            if (npcHealth != null &&
-                npcHealth.currentHealth <= 0)
+            if (npcHealth != null && npcHealth.currentHealth <= 0)
             {
                 isJumping = false;
                 yield break;
             }
 
-            // Land detection
-            if (verticalVelocity <= 0f &&
-                IsGrounded())
-            {
+            if (verticalVelocity <= 0f && IsGrounded())
                 break;
-            }
 
             yield return null;
         }
 
-        // Ground snap
-        if (Physics.Raycast(
-            transform.position + Vector3.up * 2f,
-            Vector3.down,
-            out RaycastHit hit,
-            5f,
-            groundMask))
+        if (Physics.Raycast(transform.position + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f, groundMask))
         {
-            transform.position =
-                new Vector3(
-                    transform.position.x,
-                    hit.point.y + yOffset,
-                    transform.position.z
-                );
+            transform.position = new Vector3(transform.position.x, hit.point.y + yOffset, transform.position.z);
         }
 
         verticalVelocity = -2f;
-
         jumpHorizontalVelocity = Vector3.zero;
-
         isJumping = false;
     }
 
     IEnumerator Shoot()
     {
         isShooting = true;
-
         animator.SetTrigger("Shoot");
-
-        yield return new WaitForSeconds(
-            shootCooldown
-        );
-
+        yield return new WaitForSeconds(shootCooldown);
         isShooting = false;
     }
+
+    void OnAnimatorIK(int layerIndex)
+    {
+        if (animator == null) return;
+
+        if (rightHandTarget != null)
+        {
+            animator.SetIKPositionWeight(AvatarIKGoal.RightHand, rightHandPositionWeight);
+            animator.SetIKRotationWeight(AvatarIKGoal.RightHand, rightHandRotationWeight);
+            animator.SetIKPosition(AvatarIKGoal.RightHand, rightHandTarget.position);
+            animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandTarget.rotation);
+        }
+
+        if (leftHandTarget != null)
+        {
+            animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, leftHandPositionWeight);
+            animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, leftHandRotationWeight);
+            animator.SetIKPosition(AvatarIKGoal.LeftHand, leftHandTarget.position);
+            animator.SetIKRotation(AvatarIKGoal.LeftHand, leftHandTarget.rotation);
+        }
+    }
+}
 }
