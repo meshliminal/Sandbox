@@ -28,10 +28,15 @@ namespace sandbox
         public LineRenderer debugLine;
         public float debugLineDuration = 0.05f;
 
+        [Header("Target Marker")]
+        public GameObject targetMarker;
+
         private float nextFireTime = 0f;
 
         void Update()
         {
+            UpdateAimPoint();
+
             if (Input.GetButton("Fire1") && Time.time >= nextFireTime)
             {
                 nextFireTime = Time.time + fireRate;
@@ -39,10 +44,35 @@ namespace sandbox
             }
         }
 
+        void UpdateAimPoint()
+        {
+            if (targetMarker == null) return;
+
+            Ray baseRay =
+                tpsCamera != null
+                ? tpsCamera.GetAimRay()
+                : Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+
+            int layerMask =
+                ~LayerMask.GetMask("Trigger", "disabled_ragdoll", "npc_controller");
+
+            Vector3 point;
+
+            if (Physics.Raycast(baseRay, out RaycastHit hit, bulletRange, layerMask))
+            {
+                point = hit.point;
+            }
+            else
+            {
+                point = baseRay.origin + baseRay.direction * bulletRange;
+            }
+
+            targetMarker.transform.position = point;
+        }
+
         void ShootRaycast()
         {
             bool aiming = tpsCamera != null && tpsCamera.IsAiming();
-
             float sprayFactor = aiming ? 0.0005f : 0.004f;
 
             Ray baseRay =
@@ -63,18 +93,14 @@ namespace sandbox
             int layerMask =
                 ~LayerMask.GetMask("Trigger", "disabled_ragdoll", "npc_controller");
 
-            Vector3 hitPoint;
-
             Vector3 bulletDirection = ray.direction;
 
             if (Physics.Raycast(ray, out RaycastHit hit, bulletRange, layerMask))
             {
-                hitPoint = hit.point;
-                HandleHit(hit, ray.direction);
-            }
-            else
-            {
-                hitPoint = ray.origin + ray.direction * bulletRange;
+                bulletDirection =
+                    (hit.point - firePoint.position).normalized;
+
+                HandleHit(hit, bulletDirection);
             }
 
             ShootBullet(bulletDirection);
@@ -109,7 +135,7 @@ namespace sandbox
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
 
             if (rb != null)
-                rb.velocity = direction.normalized * bulletSpeed;
+                rb.linearVelocity = direction.normalized * bulletSpeed;
 
             Destroy(bullet, 3f);
         }
@@ -121,6 +147,7 @@ namespace sandbox
             if (hit.collider.gameObject.name.ToLower() == "head")
                 damage = 100;
 
+            // NPC HIT
             if (hit.collider.CompareTag("npc_controller"))
             {
                 Transform root = hit.collider.transform;
@@ -128,39 +155,75 @@ namespace sandbox
                 while (root.parent != null)
                     root = root.parent;
 
-                NPCHealth hp = root.GetComponent<NPCHealth>();
+                GameObject rootObject = root.gameObject;
+
+                // DAMAGE
+                NPCHealth hp = rootObject.GetComponent<NPCHealth>();
+
                 if (hp != null)
                     hp.TakeDamage(damage);
 
-                SpawnSparks(hit.point, hit.normal);
+                // ELSZÁLLÁS ELLENI VÉDELEM
+                Rigidbody[] allRigidbodies =
+                    rootObject.GetComponentsInChildren<Rigidbody>();
+
+                foreach (Rigidbody body in allRigidbodies)
+                {
+                    if (body == null)
+                        continue;
+
+                    // Lassítás
+                    body.linearVelocity *= 0.15f;
+                    body.angularVelocity *= 0.15f;
+
+                    // Stabil fizika
+                    body.maxAngularVelocity = 10f;
+                    body.maxDepenetrationVelocity = 1f;
+
+                    body.interpolation =
+                        RigidbodyInterpolation.Interpolate;
+
+                    body.collisionDetectionMode =
+                        CollisionDetectionMode.ContinuousDynamic;
+                }
+
+                // EFFECT
+                if (sparkPrefab != null)
+                {
+                    GameObject obj = Instantiate(
+                        sparkPrefab,
+                        hit.point + hit.normal * 0.01f,
+                        Quaternion.LookRotation(hit.normal)
+                    );
+
+                    Destroy(obj, 2f);
+                }
+
+                // NPC-re NINCS FORCE
                 return;
             }
 
+            // NORMAL OBJECT
             if (hit.rigidbody != null)
             {
-                hit.rigidbody.AddForce(bulletDirection * 2f, ForceMode.Impulse);
+                hit.rigidbody.AddForce(
+                    bulletDirection * 1f,
+                    ForceMode.Impulse
+                );
             }
             else
             {
-                SpawnSparks(hit.point, hit.normal);
+                if (sparkPrefab != null)
+                {
+                    GameObject obj = Instantiate(
+                        sparkPrefab,
+                        hit.point + hit.normal * 0.01f,
+                        Quaternion.LookRotation(hit.normal)
+                    );
+
+                    Destroy(obj, 2f);
+                }
             }
-        }
-
-        // ----------------------------
-        // EFFECTS (HIÁNYZÓ RÉSZEK)
-        // ----------------------------
-
-        void SpawnSparks(Vector3 hitPoint, Vector3 hitNormal)
-        {
-            if (sparkPrefab == null) return;
-
-            GameObject obj = Instantiate(
-                sparkPrefab,
-                hitPoint + hitNormal * 0.01f,
-                Quaternion.LookRotation(hitNormal)
-            );
-
-            Destroy(obj, 2f);
         }
 
         void EjectCasing()
