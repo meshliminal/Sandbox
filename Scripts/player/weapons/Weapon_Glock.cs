@@ -366,11 +366,38 @@ namespace sandbox
                 return;
             }
 
-            // NORMAL OBJECT HIT
+            // NORMAL OBJECT / RAGDOLL HIT
             if (hit.rigidbody != null)
             {
-                hit.rigidbody.AddForce(
-                    bulletDirection * 1f,
+                Rigidbody rb = hit.rigidbody;
+
+                float massFactor =
+                    Mathf.Clamp(
+                        10f / Mathf.Max(rb.mass, 0.1f),
+                        0.7f,
+                        3f
+                    );
+
+                rb.linearVelocity *= 0.9f;
+                rb.angularVelocity *= 0.9f;
+
+                rb.maxAngularVelocity = 15f;
+
+                rb.interpolation =
+                    RigidbodyInterpolation.Interpolate;
+
+                rb.collisionDetectionMode =
+                    CollisionDetectionMode.ContinuousDynamic;
+
+                rb.AddForce(
+                    bulletDirection * 10f * massFactor,
+                    ForceMode.Impulse
+                );
+
+                rb.AddTorque(
+                    Random.insideUnitSphere *
+                    2f *
+                    massFactor,
                     ForceMode.Impulse
                 );
             }
