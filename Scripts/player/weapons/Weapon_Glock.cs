@@ -17,8 +17,14 @@ namespace sandbox
         public Transform firePoint;
         public TPSCamera tpsCamera;
 
+        [Header("IK")]
+        public Transform IK_righthand;
+        public float ikDistance = 2.5f;
+        public float ikSmooth = 20f;
+
         [Header("Effects")]
         public GameObject sparkPrefab;
+        public GameObject bloodPrefab;
         public GameObject casingPrefab;
         public Transform casingEjectPoint;
 
@@ -30,6 +36,9 @@ namespace sandbox
 
         [Header("Target Marker")]
         public GameObject targetMarker;
+
+        [Header("Stabilization")]
+        public float shootOriginOffset = 0.3f;
 
         private float nextFireTime = 0f;
 
@@ -44,27 +53,121 @@ namespace sandbox
             }
         }
 
-        void UpdateAimPoint()
+        void LateUpdate()
         {
-            if (targetMarker == null) return;
+            UpdateIKRightHand();
+        }
+
+        void UpdateIKRightHand()
+        {
+            if (IK_righthand == null)
+                return;
 
             Ray baseRay =
                 tpsCamera != null
                 ? tpsCamera.GetAimRay()
-                : Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+                : Camera.main.ViewportPointToRay(
+                    new Vector3(0.5f, 0.5f, 0f)
+                );
+
+            Transform characterRoot = transform.root;
+
+            Vector3 camDir = baseRay.direction.normalized;
+
+            Vector3 characterForward = Vector3.ProjectOnPlane(
+                characterRoot.forward,
+                Vector3.up
+            ).normalized;
+
+            Vector3 flatDir = Vector3.ProjectOnPlane(
+                camDir,
+                Vector3.up
+            ).normalized;
+
+            if (flatDir.sqrMagnitude < 0.001f)
+                flatDir = characterForward;
+
+            float angle = Vector3.SignedAngle(
+                characterForward,
+                flatDir,
+                Vector3.up
+            );
+
+            angle = Mathf.Clamp(angle, -85f, 85f);
+
+            Vector3 orbitDir =
+                Quaternion.AngleAxis(angle, Vector3.up) *
+                characterForward;
+
+            orbitDir.Normalize();
+
+            float vertical = Mathf.Clamp(
+                camDir.y,
+                -0.7f,
+                0.7f
+            );
+
+            Vector3 finalDir =
+                (orbitDir + Vector3.up * vertical).normalized;
+
+            Vector3 targetPos =
+                characterRoot.position +
+                Vector3.up * 1.4f +
+                finalDir * ikDistance;
+
+            Quaternion targetRot =
+                Quaternion.LookRotation(finalDir);
+
+            IK_righthand.position = Vector3.Lerp(
+                IK_righthand.position,
+                targetPos,
+                Time.deltaTime * ikSmooth
+            );
+
+            IK_righthand.rotation = Quaternion.Lerp(
+                IK_righthand.rotation,
+                targetRot,
+                Time.deltaTime * ikSmooth
+            );
+        }
+
+        void UpdateAimPoint()
+        {
+            if (targetMarker == null)
+                return;
+
+            Ray baseRay =
+                tpsCamera != null
+                ? tpsCamera.GetAimRay()
+                : Camera.main.ViewportPointToRay(
+                    new Vector3(0.5f, 0.5f, 0f)
+                );
 
             int layerMask =
-                ~LayerMask.GetMask("Trigger", "disabled_ragdoll", "npc_controller");
+                ~LayerMask.GetMask(
+                    "Trigger",
+                    "ragdoll",
+                    "npc_controller"
+                );
 
             Vector3 point;
 
-            if (Physics.Raycast(baseRay, out RaycastHit hit, bulletRange, layerMask))
+            if (
+                Physics.Raycast(
+                    baseRay,
+                    out RaycastHit hit,
+                    bulletRange,
+                    layerMask
+                )
+            )
             {
                 point = hit.point;
             }
             else
             {
-                point = baseRay.origin + baseRay.direction * bulletRange;
+                point =
+                    baseRay.origin +
+                    baseRay.direction * bulletRange;
             }
 
             targetMarker.transform.position = point;
@@ -72,13 +175,19 @@ namespace sandbox
 
         void ShootRaycast()
         {
-            bool aiming = tpsCamera != null && tpsCamera.IsAiming();
-            float sprayFactor = aiming ? 0.0005f : 0.004f;
+            bool aiming =
+                tpsCamera != null &&
+                tpsCamera.IsAiming();
+
+            float sprayFactor =
+                aiming ? 0.0005f : 0.004f;
 
             Ray baseRay =
                 tpsCamera != null
                 ? tpsCamera.GetAimRay()
-                : Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+                : Camera.main.ViewportPointToRay(
+                    new Vector3(0.5f, 0.5f, 0f)
+                );
 
             Vector3 dir = baseRay.direction;
 
@@ -88,17 +197,34 @@ namespace sandbox
                 Random.Range(-sprayFactor, sprayFactor)
             ) * 0.5f;
 
-            Ray ray = new Ray(baseRay.origin, dir.normalized);
+            dir.Normalize();
+
+            Ray ray = new Ray(baseRay.origin, dir);
 
             int layerMask =
-                ~LayerMask.GetMask("Trigger", "disabled_ragdoll", "npc_controller");
+                ~LayerMask.GetMask(
+                    "Trigger",
+                    "ragdoll",
+                    "npc_controller"
+                );
 
-            Vector3 bulletDirection = ray.direction;
+            Vector3 bulletDirection = dir;
 
-            if (Physics.Raycast(ray, out RaycastHit hit, bulletRange, layerMask))
+            Vector3 stableShootOrigin =
+                baseRay.origin +
+                baseRay.direction * shootOriginOffset;
+
+            if (
+                Physics.Raycast(
+                    ray,
+                    out RaycastHit hit,
+                    bulletRange,
+                    layerMask
+                )
+            )
             {
                 bulletDirection =
-                    (hit.point - firePoint.position).normalized;
+                    (hit.point - stableShootOrigin).normalized;
 
                 HandleHit(hit, bulletDirection);
             }
@@ -110,12 +236,20 @@ namespace sandbox
                 animator.SetTrigger("Shoot");
 
             if (debugLine != null)
-                StartCoroutine(DrawDebugRay(firePoint.position, bulletDirection * bulletRange));
+            {
+                StartCoroutine(
+                    DrawDebugRay(
+                        stableShootOrigin,
+                        bulletDirection * bulletRange
+                    )
+                );
+            }
         }
 
         IEnumerator DrawDebugRay(Vector3 start, Vector3 end)
         {
             debugLine.enabled = true;
+
             debugLine.SetPosition(0, start);
             debugLine.SetPosition(1, start + end);
 
@@ -126,26 +260,57 @@ namespace sandbox
 
         void ShootBullet(Vector3 direction)
         {
+            Vector3 spawnPos;
+
+            if (firePoint != null)
+            {
+                spawnPos =
+                    firePoint.position +
+                    firePoint.forward * 0.05f;
+            }
+            else
+            {
+                spawnPos = transform.position;
+            }
+
             GameObject bullet = Instantiate(
                 bulletPrefab,
-                firePoint.position,
-                Quaternion.LookRotation(direction) * Quaternion.Euler(90, 0, 0)
+                spawnPos,
+                Quaternion.LookRotation(direction) *
+                Quaternion.Euler(90, 0, 0)
             );
 
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
 
             if (rb != null)
-                rb.linearVelocity = direction.normalized * bulletSpeed;
+            {
+                rb.interpolation =
+                    RigidbodyInterpolation.Interpolate;
+
+                rb.collisionDetectionMode =
+                    CollisionDetectionMode.ContinuousDynamic;
+
+                rb.linearVelocity =
+                    direction.normalized * bulletSpeed;
+            }
 
             Destroy(bullet, 3f);
         }
 
-        void HandleHit(RaycastHit hit, Vector3 bulletDirection)
+        void HandleHit(
+            RaycastHit hit,
+            Vector3 bulletDirection
+        )
         {
             int damage = 60;
 
-            if (hit.collider.gameObject.name.ToLower() == "head")
+            if (
+                hit.collider.gameObject.name.ToLower() ==
+                "head"
+            )
+            {
                 damage = 100;
+            }
 
             // NPC HIT
             if (hit.collider.CompareTag("npc_controller"))
@@ -158,12 +323,13 @@ namespace sandbox
                 GameObject rootObject = root.gameObject;
 
                 // DAMAGE
-                NPCHealth hp = rootObject.GetComponent<NPCHealth>();
+                NPCHealth hp =
+                    rootObject.GetComponent<NPCHealth>();
 
                 if (hp != null)
                     hp.TakeDamage(damage);
 
-                // ELSZÁLLÁS ELLENI VÉDELEM
+                // STABILIZATION
                 Rigidbody[] allRigidbodies =
                     rootObject.GetComponentsInChildren<Rigidbody>();
 
@@ -172,11 +338,9 @@ namespace sandbox
                     if (body == null)
                         continue;
 
-                    // Lassítás
                     body.linearVelocity *= 0.15f;
                     body.angularVelocity *= 0.15f;
 
-                    // Stabil fizika
                     body.maxAngularVelocity = 10f;
                     body.maxDepenetrationVelocity = 1f;
 
@@ -187,23 +351,22 @@ namespace sandbox
                         CollisionDetectionMode.ContinuousDynamic;
                 }
 
-                // EFFECT
-                if (sparkPrefab != null)
+                // BLOOD EFFECT
+                if (bloodPrefab != null)
                 {
-                    GameObject obj = Instantiate(
-                        sparkPrefab,
+                    GameObject blood = Instantiate(
+                        bloodPrefab,
                         hit.point + hit.normal * 0.01f,
                         Quaternion.LookRotation(hit.normal)
                     );
 
-                    Destroy(obj, 2f);
+                    Destroy(blood, 3f);
                 }
 
-                // NPC-re NINCS FORCE
                 return;
             }
 
-            // NORMAL OBJECT
+            // NORMAL OBJECT HIT
             if (hit.rigidbody != null)
             {
                 hit.rigidbody.AddForce(
@@ -228,8 +391,13 @@ namespace sandbox
 
         void EjectCasing()
         {
-            if (casingPrefab == null || casingEjectPoint == null)
+            if (
+                casingPrefab == null ||
+                casingEjectPoint == null
+            )
+            {
                 return;
+            }
 
             GameObject casing = Instantiate(
                 casingPrefab,
@@ -249,8 +417,15 @@ namespace sandbox
                         Random.Range(-0.2f, 0.2f)
                     );
 
-                rb.AddForce(ejectDir * 2f, ForceMode.Impulse);
-                rb.AddTorque(Random.insideUnitSphere * 5f, ForceMode.Impulse);
+                rb.AddForce(
+                    ejectDir * 2f,
+                    ForceMode.Impulse
+                );
+
+                rb.AddTorque(
+                    Random.insideUnitSphere * 5f,
+                    ForceMode.Impulse
+                );
             }
 
             Destroy(casing, 5f);
