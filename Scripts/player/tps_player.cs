@@ -8,6 +8,9 @@ public class tps_player : MonoBehaviour
     [Header("Animator")]
     public Animator animator;
 
+    [Header("Weapon")]
+    public Weapon_Glock weapon;
+
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float runMultiplier = 2f;
@@ -68,6 +71,12 @@ public class tps_player : MonoBehaviour
     public float rightHandOffsetRight = 0f;
     public float rightHandOffsetUp = 0f;
     public float rightHandOffsetForward = 0f;
+
+    [Header("Animator Layers")]
+    public int upperBodyLayerIndex = 1;
+    public float upperBodyLayerSmooth = 10f;
+
+    private float currentUpperBodyWeight;
 
     private bool isJumping = false;
     private bool isShooting = false;
@@ -134,6 +143,7 @@ public class tps_player : MonoBehaviour
             return;
         }
 
+        HandleUpperBodyLayer();
         HandleAimIK();
         HandleMovement();
 
@@ -149,67 +159,47 @@ public class tps_player : MonoBehaviour
         HandleSpineAim();
     }
 
+    bool IsReloading()
+    {
+        return weapon != null && weapon.IsReloading;
+    }
+
+    void HandleUpperBodyLayer()
+    {
+        bool reloading = IsReloading();
+
+        float targetWeight = (isAiming || reloading) ? 1f : 0f;
+
+        currentUpperBodyWeight = Mathf.Lerp(
+            currentUpperBodyWeight,
+            targetWeight,
+            Time.deltaTime * upperBodyLayerSmooth
+        );
+
+        animator.SetLayerWeight(upperBodyLayerIndex, currentUpperBodyWeight);
+    }
+
     void HandleAimIK()
     {
-        float targetUpperbody =
-            isAiming ? 1f : 0f;
+        bool reloading = IsReloading();
 
-        float targetRightHandPos =
-            isAiming ? 1f : 0f;
+        float targetRightHandPos = 0f;
+        float targetRightHandRot = 0f;
+        float targetLeftHandPos = 0f;
+        float targetLeftHandRot = 0f;
 
-        float targetRightHandRot =
-            isAiming ? 0.225f : 0f;
-
-        float targetLeftHandPos =
-            isAiming ? 1f : 0f;
-
-        float targetLeftHandRot =
-            isAiming ? 1f : 0f;
-
-        rightHandPositionWeight = Mathf.Lerp(
-            rightHandPositionWeight,
-            targetRightHandPos,
-            Time.deltaTime * ikWeightSmooth
-        );
-
-        rightHandRotationWeight = Mathf.Lerp(
-            rightHandRotationWeight,
-            targetRightHandRot,
-            Time.deltaTime * ikWeightSmooth
-        );
-
-        leftHandPositionWeight = Mathf.Lerp(
-            leftHandPositionWeight,
-            targetLeftHandPos,
-            Time.deltaTime * ikWeightSmooth
-        );
-
-        leftHandRotationWeight = Mathf.Lerp(
-            leftHandRotationWeight,
-            targetLeftHandRot,
-            Time.deltaTime * ikWeightSmooth
-        );
-
-        if (animator != null)
+        if (!reloading && isAiming)
         {
-            int upperbodyLayer =
-                animator.GetLayerIndex("Upperbody");
-
-            if (upperbodyLayer != -1)
-            {
-                float current =
-                    animator.GetLayerWeight(upperbodyLayer);
-
-                animator.SetLayerWeight(
-                    upperbodyLayer,
-                    Mathf.Lerp(
-                        current,
-                        targetUpperbody,
-                        Time.deltaTime * ikWeightSmooth
-                    )
-                );
-            }
+            targetRightHandPos = 1f;
+            targetRightHandRot = 0.225f;
+            targetLeftHandPos = 1f;
+            targetLeftHandRot = 1f;
         }
+
+        rightHandPositionWeight = Mathf.Lerp(rightHandPositionWeight, targetRightHandPos, Time.deltaTime * ikWeightSmooth);
+        rightHandRotationWeight = Mathf.Lerp(rightHandRotationWeight, targetRightHandRot, Time.deltaTime * ikWeightSmooth);
+        leftHandPositionWeight = Mathf.Lerp(leftHandPositionWeight, targetLeftHandPos, Time.deltaTime * ikWeightSmooth);
+        leftHandRotationWeight = Mathf.Lerp(leftHandRotationWeight, targetLeftHandRot, Time.deltaTime * ikWeightSmooth);
     }
 
     public void SetCameraYaw(float yaw) => cameraYaw = yaw;
@@ -218,7 +208,6 @@ public class tps_player : MonoBehaviour
     bool IsGrounded()
     {
         Vector3 origin = transform.position + Vector3.up * 0.25f;
-
         return Physics.Raycast(origin, Vector3.down, groundCheckDistance, groundMask);
     }
 
@@ -262,7 +251,6 @@ public class tps_player : MonoBehaviour
         Vector3 dir = GetInputDirection();
 
         jumpHorizontalVelocity = dir * speed * jumpForwardMultiplier;
-
         verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
 
         StartCoroutine(JumpCoroutine());
@@ -288,40 +276,11 @@ public class tps_player : MonoBehaviour
         float targetSpeed = isMoving ? (isRunning ? 2f : 1f) : 0f;
 
         currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedVelocity, 0.1f);
-
         animator.SetFloat("Speed", currentSpeed);
-
-        float animMoveX = moveX;
-        float animMoveZ = moveZ;
-
-        if (isAiming)
-        {
-            if (moveX > 0f) animMoveX = 1f;
-            else if (moveX < 0f) animMoveX = -1f;
-            else animMoveX = 0f;
-
-            animMoveZ = (moveZ > 0f || moveX != 0f) ? 1f : 0f;
-        }
-        else
-        {
-            if (moveZ < 0f)
-                animMoveZ = 1f;
-        }
-
-        float smoothX = Mathf.SmoothDamp(animator.GetFloat("MoveX"), animMoveX, ref moveXVelocity, 0.05f);
-        float smoothZ = Mathf.SmoothDamp(animator.GetFloat("MoveZ"), animMoveZ, ref moveZVelocity, 0.05f);
-
-        animator.SetFloat("MoveX", smoothX);
-        animator.SetFloat("MoveZ", smoothZ);
 
         Vector3 targetDir = GetInputDirection();
 
-        currentMoveDirection = Vector3.SmoothDamp(
-            currentMoveDirection,
-            targetDir,
-            ref moveDirectionVelocity,
-            movementSmoothTime
-        );
+        currentMoveDirection = Vector3.SmoothDamp(currentMoveDirection, targetDir, ref moveDirectionVelocity, movementSmoothTime);
 
         float speed = isRunning ? moveSpeed * runMultiplier : moveSpeed;
 
@@ -330,43 +289,12 @@ public class tps_player : MonoBehaviour
         else if (!isJumping)
             verticalVelocity = -2f;
 
-        Vector3 horizontal;
-
-        if (isJumping)
-        {
-            Vector3 desired = currentMoveDirection * speed * jumpForwardMultiplier;
-
-            jumpHorizontalVelocity = Vector3.Lerp(
-                jumpHorizontalVelocity,
-                desired,
-                airControl * Time.deltaTime * 10f
-            );
-
-            horizontal = jumpHorizontalVelocity;
-        }
-        else
-        {
-            horizontal = currentMoveDirection * speed;
-        }
+        Vector3 horizontal = currentMoveDirection * speed;
 
         Vector3 final = horizontal;
         final.y = verticalVelocity;
 
         transform.position += final * Time.deltaTime;
-
-        if (!isJumping && verticalVelocity <= 0f)
-        {
-            if (Physics.Raycast(transform.position + Vector3.up, Vector3.down, out RaycastHit hit, 3f, groundMask))
-            {
-                float y = hit.point.y + yOffset;
-
-                transform.position = Vector3.Lerp(
-                    transform.position,
-                    new Vector3(transform.position.x, y, transform.position.z),
-                    landingSnapForce * Time.deltaTime
-                );
-            }
-        }
 
         if (rb != null)
         {
@@ -377,13 +305,11 @@ public class tps_player : MonoBehaviour
         if (isAiming)
         {
             Quaternion camRot = Quaternion.Euler(0f, cameraYaw, 0f);
-
             transform.rotation = Quaternion.Slerp(transform.rotation, camRot, cameraTurnSmooth * Time.deltaTime);
         }
         else if (rotateToMovement && currentMoveDirection.sqrMagnitude > 0.01f)
         {
             Quaternion rot = Quaternion.LookRotation(currentMoveDirection);
-
             transform.rotation = Quaternion.Slerp(transform.rotation, rot, rotationSpeed * Time.deltaTime);
         }
     }
@@ -399,35 +325,17 @@ public class tps_player : MonoBehaviour
 
         pitch = Mathf.Clamp(pitch, maxLookDown, maxLookUp);
 
-        currentSpinePitch = Mathf.Lerp(
-            currentSpinePitch,
-            pitch,
-            spineSmooth * Time.deltaTime
-        );
+        currentSpinePitch = Mathf.Lerp(currentSpinePitch, pitch, spineSmooth * Time.deltaTime);
 
-        if (isAiming)
+        if (isAiming && !IsReloading())
         {
-            spine.localRotation =
-                spineStartRot *
-                Quaternion.Euler(currentSpinePitch * 0.4f, 0f, 0f);
-
-            chest.localRotation =
-                chestStartRot *
-                Quaternion.Euler(currentSpinePitch * 0.6f, 0f, 0f);
+            spine.localRotation = spineStartRot * Quaternion.Euler(currentSpinePitch * 0.4f, 0f, 0f);
+            chest.localRotation = chestStartRot * Quaternion.Euler(currentSpinePitch * 0.6f, 0f, 0f);
         }
         else
         {
-            spine.localRotation = Quaternion.Slerp(
-                spine.localRotation,
-                spineStartRot,
-                spineSmooth * Time.deltaTime
-            );
-
-            chest.localRotation = Quaternion.Slerp(
-                chest.localRotation,
-                chestStartRot,
-                spineSmooth * Time.deltaTime
-            );
+            spine.localRotation = Quaternion.Slerp(spine.localRotation, spineStartRot, spineSmooth * Time.deltaTime);
+            chest.localRotation = Quaternion.Slerp(chest.localRotation, chestStartRot, spineSmooth * Time.deltaTime);
         }
     }
 
@@ -447,16 +355,6 @@ public class tps_player : MonoBehaviour
             yield return null;
         }
 
-        if (Physics.Raycast(transform.position + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 5f, groundMask))
-        {
-            transform.position =
-                new Vector3(
-                    transform.position.x,
-                    hit.point.y + yOffset,
-                    transform.position.z
-                );
-        }
-
         verticalVelocity = -2f;
         jumpHorizontalVelocity = Vector3.zero;
         isJumping = false;
@@ -465,11 +363,8 @@ public class tps_player : MonoBehaviour
     IEnumerator Shoot()
     {
         isShooting = true;
-
         animator.SetTrigger("Shoot");
-
         yield return new WaitForSeconds(shootCooldown);
-
         isShooting = false;
     }
 
@@ -478,17 +373,17 @@ public class tps_player : MonoBehaviour
         if (animator == null)
             return;
 
+        bool reloading = IsReloading();
+
+        float rwPos = (!reloading) ? rightHandPositionWeight : 0f;
+        float rwRot = (!reloading) ? rightHandRotationWeight : 0f;
+        float lwPos = (!reloading) ? leftHandPositionWeight : 0f;
+        float lwRot = (!reloading) ? leftHandRotationWeight : 0f;
+
         if (rightHandTarget != null)
         {
-            animator.SetIKPositionWeight(
-                AvatarIKGoal.RightHand,
-                rightHandPositionWeight
-            );
-
-            animator.SetIKRotationWeight(
-                AvatarIKGoal.RightHand,
-                rightHandRotationWeight
-            );
+            animator.SetIKPositionWeight(AvatarIKGoal.RightHand, rwPos);
+            animator.SetIKRotationWeight(AvatarIKGoal.RightHand, rwRot);
 
             Vector3 finalRightPos =
                 rightHandTarget.position +
@@ -496,38 +391,17 @@ public class tps_player : MonoBehaviour
                 rightHandTarget.up * rightHandOffsetUp +
                 rightHandTarget.forward * rightHandOffsetForward;
 
-            animator.SetIKPosition(
-                AvatarIKGoal.RightHand,
-                finalRightPos
-            );
-
-            animator.SetIKRotation(
-                AvatarIKGoal.RightHand,
-                rightHandTarget.rotation
-            );
+            animator.SetIKPosition(AvatarIKGoal.RightHand, finalRightPos);
+            animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandTarget.rotation);
         }
 
         if (leftHandTarget != null)
         {
-            animator.SetIKPositionWeight(
-                AvatarIKGoal.LeftHand,
-                leftHandPositionWeight
-            );
+            animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, lwPos);
+            animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, lwRot);
 
-            animator.SetIKRotationWeight(
-                AvatarIKGoal.LeftHand,
-                leftHandRotationWeight
-            );
-
-            animator.SetIKPosition(
-                AvatarIKGoal.LeftHand,
-                leftHandTarget.position
-            );
-
-            animator.SetIKRotation(
-                AvatarIKGoal.LeftHand,
-                leftHandTarget.rotation
-            );
+            animator.SetIKPosition(AvatarIKGoal.LeftHand, leftHandTarget.position);
+            animator.SetIKRotation(AvatarIKGoal.LeftHand, leftHandTarget.rotation);
         }
     }
 }
