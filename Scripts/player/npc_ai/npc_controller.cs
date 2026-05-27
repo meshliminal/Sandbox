@@ -13,19 +13,36 @@ public class npc_controller : MonoBehaviour
     [Header("Main Collider")]
     public CapsuleCollider mainCapsuleCollider;
 
+    [Header("Hitbox Layer Settings")]
+    public int hitboxLayer; // a hitbox layer indexe
+    public Collider[] hitboxColliders; // csak a hitbox layeren lévõ colliderek
+
     void Start()
     {
-        // Keressük a Rigidbody-kat és Collider-eket a karakter gyerekobjektumai között
+        // Rigidbody-k és Collider-ek keresése
         ragdollRigidbodies = character.GetComponentsInChildren<Rigidbody>(true);
         ragdollColliders = character.GetComponentsInChildren<Collider>(true);
 
-        // Ha nincs kézzel beállítva, automatikusan megkeresi
+        // Hitbox layeren lévõ colliderek összegyûjtése
+        List<Collider> hitboxList = new List<Collider>();
+
+        foreach (var col in ragdollColliders)
+        {
+            if (col != null && col.gameObject.layer == hitboxLayer)
+            {
+                hitboxList.Add(col);
+            }
+        }
+
+        hitboxColliders = hitboxList.ToArray();
+
+        // Main collider automatikus keresése
         if (mainCapsuleCollider == null)
         {
             mainCapsuleCollider = GetComponent<CapsuleCollider>();
         }
 
-        // Alapértelmezett állapot: ragdoll kikapcsolva
+        // Alapállapot
         EnableRagdoll(false);
     }
 
@@ -36,31 +53,39 @@ public class npc_controller : MonoBehaviour
 
     public void EnableRagdoll(bool enable)
     {
-        // Rigidbody-k kinematikus állapotának kezelése
+        // Rigidbody kezelés
         foreach (var rb in ragdollRigidbodies)
         {
             // rb.isKinematic = !enable;
         }
 
-        // Collider-ek engedélyezése/kikapcsolása
+        // Összes collider kezelése (ragdoll logika)
         foreach (var col in ragdollColliders)
         {
             // col.enabled = enable;
         }
 
-        // Fõ Capsule Collider kezelése
+        // HITBOX LAYER COLLIDEREK KIKAPCSOLÁSA HALÁL UTÁN
+        foreach (var hitboxCol in hitboxColliders)
+        {
+            if (hitboxCol != null)
+            {
+                hitboxCol.enabled = !enable;
+            }
+        }
+
+        // Main capsule collider kezelése
         if (mainCapsuleCollider != null)
         {
             mainCapsuleCollider.enabled = !enable;
         }
 
-        // Animator állapota
+        // Animator ki/be
         animator.enabled = !enable;
     }
 
     public void ActivateRagdoll()
     {
-        // Debug.Log("Ragdoll Activated");
         EnableRagdoll(true);
     }
 
@@ -68,4 +93,4 @@ public class npc_controller : MonoBehaviour
     {
         EnableRagdoll(false);
     }
-} 
+}
