@@ -4,18 +4,23 @@ using UnityEngine;
 
 public class npc_controller : MonoBehaviour
 {
-    public GameObject character; // A kezelendõ karakter gyökér GameObject-je
-    public Animator animator;    // Az Animator, amely az animációkat kezeli
+    [Header("Character")]
+    public GameObject character;
+    public Animator animator;
 
-    public Rigidbody[] ragdollRigidbodies; // A karakterben található összes Rigidbody
-    public Collider[] ragdollColliders;    // A karakterben található összes Collider
+    [Header("Ragdoll")]
+    public Rigidbody[] ragdollRigidbodies;
+    public Collider[] ragdollColliders;
 
     [Header("Main Collider")]
     public CapsuleCollider mainCapsuleCollider;
 
     [Header("Hitbox Layer Settings")]
-    public int hitboxLayer; // a hitbox layer indexe
-    public Collider[] hitboxColliders; // csak a hitbox layeren lévõ colliderek
+    public int hitboxLayer;
+    public Collider[] hitboxColliders;
+
+    [Header("Player Settings")]
+    public bool isPlayer = false; // Ha ez player, akkor nem kapcsoljuk ki a fõ collidert
 
     void Start()
     {
@@ -56,16 +61,26 @@ public class npc_controller : MonoBehaviour
         // Rigidbody kezelés
         foreach (var rb in ragdollRigidbodies)
         {
-            // rb.isKinematic = !enable;
+            if (rb != null)
+            {
+                rb.isKinematic = !enable;
+            }
         }
 
-        // Összes collider kezelése (ragdoll logika)
+        // Ragdoll colliderek kezelése
         foreach (var col in ragdollColliders)
         {
-            // col.enabled = enable;
+            if (col != null)
+            {
+                // A main colliderhez ne nyúljon itt
+                if (mainCapsuleCollider != null && col == mainCapsuleCollider)
+                    continue;
+
+                col.enabled = enable;
+            }
         }
 
-        // HITBOX LAYER COLLIDEREK KIKAPCSOLÁSA HALÁL UTÁN
+        // HITBOX colliderek kikapcsolása halál után
         foreach (var hitboxCol in hitboxColliders)
         {
             if (hitboxCol != null)
@@ -77,11 +92,23 @@ public class npc_controller : MonoBehaviour
         // Main capsule collider kezelése
         if (mainCapsuleCollider != null)
         {
-            mainCapsuleCollider.enabled = !enable;
+            // NPC esetén kikapcsoljuk
+            // Player esetén bekapcsolva marad
+            if (!isPlayer)
+            {
+                mainCapsuleCollider.enabled = !enable;
+            }
+            else
+            {
+                mainCapsuleCollider.enabled = true;
+            }
         }
 
         // Animator ki/be
-        animator.enabled = !enable;
+        if (animator != null)
+        {
+            animator.enabled = !enable;
+        }
     }
 
     public void ActivateRagdoll()
