@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using sandbox;
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -14,22 +15,38 @@ public class PlayerHealth : MonoBehaviour
     private Rigidbody playerRb;
     private Collider[] playerColliders;
 
+    // Kamera referencia
+    private TPSCamera tpsCamera;
+
     void Start()
     {
         currentHealth = maxHealth; // Kezdetben teljes élet
 
-        deadBody.SetActive(false);
+        if (deadBody != null)
+        {
+            deadBody.SetActive(false);
+        }
 
         playerRb = GetComponent<Rigidbody>();
         playerColliders = GetComponentsInChildren<Collider>();
+
+        // Kamera keresése
+        tpsCamera = FindObjectOfType<TPSCamera>();
     }
 
     public void TakeDamage(float amount)
     {
-        if (isDead) return; // Ne vegyen kárt, ha már halott
+        if (isDead)
+            return; // Ne vegyen kárt, ha már halott
 
         currentHealth -= amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
+        currentHealth =
+            Mathf.Clamp(
+                currentHealth,
+                0,
+                maxHealth
+            );
 
         Debug.Log($"Current Health: {currentHealth}");
 
@@ -42,13 +59,21 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         Debug.Log("Player has died!");
+
         isDead = true;
+
+        // TPS Kamera értesítése
+        if (tpsCamera != null)
+        {
+            tpsCamera.OnPlayerDeath();
+        }
 
         // PLAYER MOZGÁS LEÁLLÍTÁS
         if (playerRb != null)
         {
             playerRb.linearVelocity = Vector3.zero;
             playerRb.angularVelocity = Vector3.zero;
+
             playerRb.isKinematic = true;
         }
 
@@ -62,10 +87,14 @@ public class PlayerHealth : MonoBehaviour
         if (deadBody != null)
         {
             // Pozíció és rotáció másolása
-            Vector3 offset = new Vector3(0, -0.5f, 0);
+            Vector3 offset =
+                new Vector3(0, -0.5f, 0);
 
-            deadBody.transform.position = transform.position + offset;
-            deadBody.transform.rotation = transform.rotation;
+            deadBody.transform.position =
+                transform.position + offset;
+
+            deadBody.transform.rotation =
+                transform.rotation;
 
             deadBody.SetActive(true);
 
@@ -81,7 +110,9 @@ public class PlayerHealth : MonoBehaviour
                 rb.angularVelocity = Vector3.zero;
             }
 
-            StartCoroutine(DisableKinematicAfterDelay());
+            StartCoroutine(
+                DisableKinematicAfterDelay()
+            );
         }
 
         if (deadUi != null)
@@ -102,7 +133,9 @@ public class PlayerHealth : MonoBehaviour
             currentHealth = maxHealth;
         }
 
-        Debug.Log("Health refilled by " + amount);
+        Debug.Log(
+            "Health refilled by " + amount
+        );
     }
 
     public float GetHealthPercentage()

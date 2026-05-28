@@ -136,11 +136,6 @@ namespace sandbox
                 StartCoroutine(Shoot());
         }
 
-        void LateUpdate()
-        {
-            HandleSpineAim();
-        }
-
         void GroundCheck()
         {
             Vector3 center =
@@ -352,7 +347,7 @@ namespace sandbox
             if (!reloading && isAiming)
             {
                 targetRightHandPos = 1f;
-                targetRightHandRot = 0.225f;
+    targetRightHandRot = 0.225f;
 
                 targetLeftHandPos = 1f;
                 targetLeftHandRot = 1f;
@@ -393,7 +388,7 @@ namespace sandbox
             cameraPitch = pitch;
         }
 
-        void HandleSpineAim()
+        void ApplySpineAim()
         {
             if (spine == null || chest == null)
                 return;
@@ -456,6 +451,10 @@ namespace sandbox
         {
             if (animator == null)
                 return;
+
+            // FONTOS:
+            // ELŐBB spine/chest forgatás
+            ApplySpineAim();
 
             bool reloading = IsReloading();
 

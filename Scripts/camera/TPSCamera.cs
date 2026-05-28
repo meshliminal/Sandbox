@@ -2,202 +2,443 @@ using UnityEngine;
 
 namespace sandbox
 {
-public class TPSCamera : MonoBehaviour
-{
-    [Header("Targets")]
-    public Transform playerTarget;
-
-    [Header("Weapon")]
-    public Weapon_Glock weapon;
-
-    [Header("Player Controller")]
-    public tps_player playerController;
-
-    [Header("Crosshair")]
-    public GameObject crosshairObject;
-
-    [Header("Normal Offset")]
-    public Vector3 normalOffset =
-        new Vector3(0f, 1.8f, -5.5f);
-
-    [Header("Aim Offset")]
-    public Vector3 aimOffset =
-        new Vector3(0.4f, 1.45f, -2f);
-
-    [Header("Aim")]
-    public float aimTargetDistance = 100f;
-
-    [Header("Zoom")]
-    public float zoomSpeed = 1f;
-    public float minDistance = 1.5f;
-    public float maxDistance = 12f;
-
-    [Header("Rotation")]
-    public float mouseSensitivity = 2.2f;
-    public float rotationSmoothSpeed = 14f;
-    public float minYAngle = -35f;
-    public float maxYAngle = 75f;
-
-    [Header("Smoothing")]
-    public float positionSmoothTime = 0.12f;
-    public float aimSmoothSpeed = 10f;
-
-    [Header("FOV")]
-    public float normalFov = 65f;
-    public float aimFov = 38f;
-    public float fovSmooth = 10f;
-
-    [Header("Collision")]
-    public LayerMask levelLayer;
-    public float collisionRadius = 0.25f;
-    public float collisionOffset = 0.2f;
-
-    private float yaw;
-    private float pitch;
-
-    private float currentYaw;
-    private float currentPitch;
-
-    private Vector3 currentOffset;
-    private Vector3 positionVelocity;
-
-    private bool isAiming;
-
-    private Camera cam;
-
-    void Start()
+    public class TPSCamera : MonoBehaviour
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        [Header("Targets")]
+        public Transform playerTarget;
 
-        cam = Camera.main;
+        [Header("Weapon")]
+        public Weapon_Glock weapon;
 
-        Vector3 angles = transform.eulerAngles;
+        [Header("Player Controller")]
+        public tps_player playerController;
 
-        yaw = angles.y;
-        pitch = angles.x;
+        [Header("Animator")]
+        public Animator animator;
 
-        currentYaw = yaw;
-        currentPitch = pitch;
+        [Header("Crosshair")]
+        public GameObject crosshairObject;
 
-        currentOffset = normalOffset;
+        [Header("IK Targets")]
+        public Transform rightHandIKTarget;
+        public Transform leftHandIKTarget;
 
-        if (crosshairObject != null)
+        [Header("IK")]
+        public bool lockHandsToCamera = true;
+        public float ikRotateSpeed = 15f;
+
+        [Header("Normal Offset")]
+        public Vector3 normalOffset =
+            new Vector3(0f, 1.8f, -5.5f);
+
+        [Header("Aim Offset")]
+        public Vector3 aimOffset =
+            new Vector3(0.4f, 1.45f, -2f);
+
+        [Header("Aim")]
+        public float aimTargetDistance = 100f;
+
+        [Header("Zoom")]
+        public float zoomSpeed = 1f;
+        public float minDistance = 1.5f;
+        public float maxDistance = 12f;
+
+        [Header("Rotation")]
+        public float mouseSensitivity = 2.2f;
+        public float rotationSmoothSpeed = 14f;
+        public float minYAngle = -35f;
+        public float maxYAngle = 75f;
+
+        [Header("Smoothing")]
+        public float positionSmoothTime = 0.12f;
+        public float aimSmoothSpeed = 10f;
+
+        [Header("FOV")]
+        public float normalFov = 65f;
+        public float aimFov = 38f;
+        public float fovSmooth = 10f;
+
+        [Header("Collision")]
+        public LayerMask levelLayer;
+        public float collisionRadius = 0.25f;
+        public float collisionOffset = 0.2f;
+
+        [Header("Death Camera")]
+        public float minimumCameraHeight = 0.5f;
+
+        private float yaw;
+        private float pitch;
+
+        private float currentYaw;
+        private float currentPitch;
+
+        private Vector3 currentOffset;
+        private Vector3 positionVelocity;
+
+        private bool isAiming;
+        private bool playerDead;
+
+        private float lockedHeight;
+
+        private Vector3 lastAlivePosition;
+
+        private Camera cam;
+
+        void Start()
         {
-            crosshairObject.SetActive(false);
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+
+            cam = Camera.main;
+
+            Vector3 angles = transform.eulerAngles;
+
+            yaw = angles.y;
+            pitch = angles.x;
+
+            currentYaw = yaw;
+            currentPitch = pitch;
+
+            currentOffset = normalOffset;
+
+            if (playerTarget != null)
+            {
+                lastAlivePosition = playerTarget.position;
+            }
+
+            if (crosshairObject != null)
+            {
+                crosshairObject.SetActive(false);
+            }
         }
-    }
 
-    void LateUpdate()
-    {
-        if (playerTarget == null)
-            return;
+        void LateUpdate()
+        {
+            if (playerTarget == null)
+                return;
 
-        HandleAim();
-        HandleMouseInput();
-        HandleZoom();
-        HandleFOV();
-        MoveCamera();
-    }
+            if (!playerDead)
+            {
+                HandleAim();
+                HandleMouseInput();
+                HandleZoom();
+            }
 
-    void HandleAim()
-    {
-        isAiming = Input.GetMouseButton(1);
+            HandleFOV();
+            MoveCamera();
+            UpdateHandIK();
+        }
 
-        if (crosshairObject != null)
-            crosshairObject.SetActive(isAiming);
+        void HandleAim()
+        {
+            isAiming = Input.GetMouseButton(1);
 
-        Vector3 targetOffset =
-            isAiming ? aimOffset : normalOffset;
+            if (crosshairObject != null)
+                crosshairObject.SetActive(isAiming);
 
-        currentOffset =
-            Vector3.Lerp(
-                currentOffset,
-                targetOffset,
-                Time.deltaTime * aimSmoothSpeed
+            Vector3 targetOffset =
+                isAiming ? aimOffset : normalOffset;
+
+            currentOffset =
+                Vector3.Lerp(
+                    currentOffset,
+                    targetOffset,
+                    Time.deltaTime * aimSmoothSpeed
+                );
+        }
+
+        void HandleMouseInput()
+        {
+            float mouseX =
+                Input.GetAxis("Mouse X") * mouseSensitivity;
+
+            float mouseY =
+                Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+            yaw += mouseX;
+            pitch -= mouseY;
+
+            pitch =
+                Mathf.Clamp(
+                    pitch,
+                    minYAngle,
+                    maxYAngle
+                );
+
+            currentYaw =
+                Mathf.LerpAngle(
+                    currentYaw,
+                    yaw,
+                    Time.deltaTime * rotationSmoothSpeed
+                );
+
+            currentPitch =
+                Mathf.Lerp(
+                    currentPitch,
+                    pitch,
+                    Time.deltaTime * rotationSmoothSpeed
+                );
+
+            if (playerController != null)
+            {
+                playerController.SetCameraYaw(currentYaw);
+                playerController.SetCameraPitch(currentPitch);
+            }
+        }
+
+        void HandleZoom()
+        {
+            float scroll = Input.mouseScrollDelta.y;
+
+            if (scroll != 0f)
+            {
+                normalOffset.z += scroll * zoomSpeed;
+
+                normalOffset.z =
+                    Mathf.Clamp(
+                        normalOffset.z,
+                        -maxDistance,
+                        -minDistance
+                    );
+
+                aimOffset.z += scroll * zoomSpeed;
+
+                aimOffset.z =
+                    Mathf.Clamp(
+                        aimOffset.z,
+                        -6f,
+                        -1f
+                    );
+            }
+        }
+
+        void HandleFOV()
+        {
+            if (cam == null)
+                return;
+
+            float targetFov =
+                isAiming ? aimFov : normalFov;
+
+            cam.fieldOfView =
+                Mathf.Lerp(
+                    cam.fieldOfView,
+                    targetFov,
+                    Time.deltaTime * fovSmooth
+                );
+        }
+
+        void MoveCamera()
+        {
+            Quaternion rotation =
+                Quaternion.Euler(
+                    currentPitch,
+                    currentYaw,
+                    0f
+                );
+
+            Vector3 pivotPoint;
+
+            if (!playerDead)
+            {
+                lastAlivePosition = playerTarget.position;
+
+                pivotPoint =
+                    playerTarget.position +
+                    Vector3.up * 1.45f;
+            }
+            else
+            {
+                pivotPoint = new Vector3(
+                    lastAlivePosition.x,
+                    lockedHeight,
+                    lastAlivePosition.z
+                );
+            }
+
+            Vector3 desiredPosition =
+                pivotPoint +
+                rotation * currentOffset;
+
+            Vector3 direction =
+                desiredPosition - pivotPoint;
+
+            float distance =
+                direction.magnitude;
+
+            direction.Normalize();
+
+            if (
+                Physics.SphereCast(
+                    pivotPoint,
+                    collisionRadius,
+                    direction,
+                    out RaycastHit hit,
+                    distance,
+                    levelLayer
+                )
+            )
+            {
+                desiredPosition =
+                    hit.point -
+                    direction * collisionOffset;
+            }
+
+            desiredPosition.y =
+                Mathf.Max(
+                    desiredPosition.y,
+                    minimumCameraHeight
+                );
+
+            transform.position =
+                Vector3.SmoothDamp(
+                    transform.position,
+                    desiredPosition,
+                    ref positionVelocity,
+                    positionSmoothTime
+                );
+
+            transform.rotation =
+                Quaternion.Slerp(
+                    transform.rotation,
+                    rotation,
+                    Time.deltaTime * rotationSmoothSpeed
+                );
+        }
+
+        void UpdateHandIK()
+        {
+            if (!lockHandsToCamera)
+                return;
+
+            Quaternion targetRotation =
+                Quaternion.Euler(
+                    currentPitch,
+                    currentYaw,
+                    0f
+                );
+
+            if (rightHandIKTarget != null)
+            {
+                rightHandIKTarget.rotation =
+                    Quaternion.Slerp(
+                        rightHandIKTarget.rotation,
+                        targetRotation,
+                        Time.deltaTime * ikRotateSpeed
+                    );
+            }
+
+            if (leftHandIKTarget != null)
+            {
+                leftHandIKTarget.rotation =
+                    Quaternion.Slerp(
+                        leftHandIKTarget.rotation,
+                        targetRotation,
+                        Time.deltaTime * ikRotateSpeed
+                    );
+            }
+        }
+
+        void OnAnimatorIK(int layerIndex)
+        {
+            if (animator == null)
+                return;
+
+            Quaternion targetRot =
+                Quaternion.Euler(
+                    currentPitch,
+                    currentYaw,
+                    0f
+                );
+
+            animator.SetIKRotationWeight(
+                AvatarIKGoal.RightHand,
+                1f
             );
-    }
 
-    void HandleMouseInput()
-    {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+            animator.SetIKRotationWeight(
+                AvatarIKGoal.LeftHand,
+                1f
+            );
 
-        yaw += mouseX;
-        pitch -= mouseY;
+            animator.SetIKRotation(
+                AvatarIKGoal.RightHand,
+                targetRot
+            );
 
-        pitch = Mathf.Clamp(pitch, minYAngle, maxYAngle);
+            animator.SetIKRotation(
+                AvatarIKGoal.LeftHand,
+                targetRot
+            );
 
-        currentYaw = Mathf.LerpAngle(currentYaw, yaw, Time.deltaTime * rotationSmoothSpeed);
-        currentPitch = Mathf.Lerp(currentPitch, pitch, Time.deltaTime * rotationSmoothSpeed);
+            if (rightHandIKTarget != null)
+            {
+                animator.SetIKPositionWeight(
+                    AvatarIKGoal.RightHand,
+                    1f
+                );
 
-        if (playerController != null)
-        {
-            playerController.SetCameraYaw(currentYaw);
-            playerController.SetCameraPitch(currentPitch);
-        }
-    }
+                animator.SetIKPosition(
+                    AvatarIKGoal.RightHand,
+                    rightHandIKTarget.position
+                );
+            }
 
-    void HandleZoom()
-    {
-        float scroll = Input.mouseScrollDelta.y;
+            if (leftHandIKTarget != null)
+            {
+                animator.SetIKPositionWeight(
+                    AvatarIKGoal.LeftHand,
+                    1f
+                );
 
-        if (scroll != 0f)
-        {
-            normalOffset.z += scroll * zoomSpeed;
-            normalOffset.z = Mathf.Clamp(normalOffset.z, -maxDistance, -minDistance);
-
-            aimOffset.z += scroll * zoomSpeed;
-            aimOffset.z = Mathf.Clamp(aimOffset.z, -6f, -1f);
-        }
-    }
-
-    void HandleFOV()
-    {
-        if (cam == null) return;
-
-        float targetFov = isAiming ? aimFov : normalFov;
-
-        cam.fieldOfView =
-            Mathf.Lerp(cam.fieldOfView, targetFov, Time.deltaTime * fovSmooth);
-    }
-
-    void MoveCamera()
-    {
-        Quaternion rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
-
-        Vector3 pivotPoint = playerTarget.position + Vector3.up * 1.45f;
-
-        Vector3 desiredPosition = pivotPoint + rotation * currentOffset;
-
-        Vector3 direction = desiredPosition - pivotPoint;
-        float distance = direction.magnitude;
-        direction.Normalize();
-
-        if (Physics.SphereCast(pivotPoint, collisionRadius, direction, out RaycastHit hit, distance, levelLayer))
-        {
-            desiredPosition = hit.point - direction * collisionOffset;
+                animator.SetIKPosition(
+                    AvatarIKGoal.LeftHand,
+                    leftHandIKTarget.position
+                );
+            }
         }
 
-        transform.position =
-            Vector3.SmoothDamp(transform.position, desiredPosition, ref positionVelocity, positionSmoothTime);
+        public void OnPlayerDeath()
+        {
+            playerDead = true;
 
-        transform.rotation =
-            Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * rotationSmoothSpeed);
+            isAiming = false;
+
+            lastAlivePosition = playerTarget.position;
+
+            lockedHeight =
+                playerTarget.position.y + 1.45f;
+
+            if (crosshairObject != null)
+            {
+                crosshairObject.SetActive(false);
+            }
+        }
+
+        public Ray GetAimRay()
+        {
+            return cam.ScreenPointToRay(
+                new Vector3(
+                    Screen.width / 2f,
+                    Screen.height / 2f,
+                    0f
+                )
+            );
+        }
+
+        public bool IsAiming()
+        {
+            return isAiming;
+        }
+
+        public float GetYaw()
+        {
+            return currentYaw;
+        }
+
+        public float GetPitch()
+        {
+            return currentPitch;
+        }
     }
-
-    // ✅ EZ AZ ÚJ FIX
-    public Ray GetAimRay()
-    {
-        return cam.ScreenPointToRay(
-            new Vector3(Screen.width / 2f, Screen.height / 2f, 0f)
-        );
-    }
-
-    public bool IsAiming() => isAiming;
-
-    public float GetYaw() => currentYaw;
-
-    public float GetPitch() => currentPitch;
-}
 }
