@@ -33,17 +33,18 @@ namespace sandbox
         [Header("IK Weight")]
         public float ikBlendSpeed = 10f;
 
-        [Header("Effects")]
-        public GameObject sparkPrefab;
-        public GameObject bloodPrefab;
-        public GameObject casingPrefab;
-        public Transform casingEjectPoint;
+[Header("Effects")]
+public GameObject sparkPrefab;
+public GameObject bloodPrefab;
+public GameObject smokePrefab;
+public GameObject debrisPrefab;
+
+public GameObject casingPrefab;
+public Transform casingEjectPoint;
 
         public Animator animator;
 
-        [Header("Debug")]
-        public LineRenderer debugLine;
-        public float debugLineDuration = 0.05f;
+
 
         [Header("Target Marker")]
         public GameObject targetMarker;
@@ -257,10 +258,10 @@ namespace sandbox
 
             if (Physics.Raycast(ray, out RaycastHit hit, bulletRange, layerMask))
             {
-				    Debug.Log(
-        "Találat: " +
-        hit.collider.name
-    );
+				    //Debug.Log(
+					//"Találat: " +
+					//hit.collider.name
+					//);
 
 				
 				
@@ -274,20 +275,10 @@ namespace sandbox
             if (animator != null)
                 animator.SetTrigger("Shoot");
 
-            if (debugLine != null)
-                StartCoroutine(DrawDebugRay(stableShootOrigin, bulletDirection * bulletRange));
+
         }
 
-        IEnumerator DrawDebugRay(Vector3 start, Vector3 end)
-        {
-            debugLine.enabled = true;
-            debugLine.SetPosition(0, start);
-            debugLine.SetPosition(1, start + end);
 
-            yield return new WaitForSeconds(debugLineDuration);
-
-            debugLine.enabled = false;
-        }
 
         void ShootBullet(Vector3 direction)
         {
@@ -361,15 +352,71 @@ namespace sandbox
             }
             else if (sparkPrefab != null)
             {
-                GameObject obj = Instantiate(
-                    sparkPrefab,
-                    hit.point + hit.normal * 0.01f,
-                    Quaternion.LookRotation(hit.normal)
-                );
+    SpawnImpactEffects(hit);
 
-                Destroy(obj, 2f);
+                //Destroy(obj, 2f);
             }
         }
+
+void SpawnImpactEffects(RaycastHit hit)
+{
+    Vector3 impactPos = hit.point + hit.normal * 0.01f;
+    Quaternion impactRot = Quaternion.LookRotation(hit.normal);
+
+    // Spark
+    if (sparkPrefab != null)
+    {
+        GameObject spark = Instantiate(
+            sparkPrefab,
+            impactPos,
+            impactRot
+        );
+
+        Destroy(spark, 2f);
+    }
+
+    // Smoke
+    if (smokePrefab != null)
+    {
+        GameObject smoke = Instantiate(
+            smokePrefab,
+            impactPos,
+            impactRot
+        );
+
+        Destroy(smoke, 5f);
+    }
+
+    // Debris
+    if (debrisPrefab != null)
+    {
+        GameObject debris = Instantiate(
+            debrisPrefab,
+            impactPos,
+            impactRot
+        );
+
+        Rigidbody[] rbs = debris.GetComponentsInChildren<Rigidbody>();
+
+        foreach (Rigidbody rb in rbs)
+        {
+            rb.AddForce(
+                (hit.normal + Random.insideUnitSphere * 0.5f) *
+                Random.Range(1f, 3f),
+                ForceMode.Impulse
+            );
+
+            rb.AddTorque(
+                Random.insideUnitSphere *
+                Random.Range(1f, 5f),
+                ForceMode.Impulse
+            );
+        }
+
+        Destroy(debris, 5f);
+    }
+}
+
 
         void EjectCasing()
         {

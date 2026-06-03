@@ -371,7 +371,7 @@ void StartJump()
             if (!reloading && isAiming)
             {
                 targetRightHandPos = 1f;
-                targetRightHandRot = 0.225f;
+                targetRightHandRot = 1f;
                 targetLeftHandPos = 1f;
                 targetLeftHandRot = 1f;
             }
@@ -449,20 +449,28 @@ void StartJump()
             float lwPos = (!reloading) ? leftHandPositionWeight : 0f;
             float lwRot = (!reloading) ? leftHandRotationWeight : 0f;
 
-            if (rightHandTarget != null)
-            {
-                animator.SetIKPositionWeight(AvatarIKGoal.RightHand, rwPos);
-                animator.SetIKRotationWeight(AvatarIKGoal.RightHand, rwRot);
+if (rightHandTarget != null)
+{
+    animator.SetIKPositionWeight(AvatarIKGoal.RightHand, rwPos);
+    animator.SetIKRotationWeight(AvatarIKGoal.RightHand, rwRot);
 
-                Vector3 finalRightPos =
-                    rightHandTarget.position +
-                    rightHandTarget.right * rightHandOffsetRight +
-                    rightHandTarget.up * rightHandOffsetUp +
-                    rightHandTarget.forward * rightHandOffsetForward;
+    Vector3 finalRightPos =
+        rightHandTarget.position +
+        rightHandTarget.right * rightHandOffsetRight +
+        rightHandTarget.up * rightHandOffsetUp +
+        rightHandTarget.forward * rightHandOffsetForward;
 
-                animator.SetIKPosition(AvatarIKGoal.RightHand, finalRightPos);
-                animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandTarget.rotation);
-            }
+    animator.SetIKPosition(AvatarIKGoal.RightHand, finalRightPos);
+Vector3 euler = rightHandTarget.rotation.eulerAngles;
+
+    Quaternion fixedRotation =
+        transform.rotation *
+        Quaternion.Euler(euler.x,
+    0f,
+    -90f);
+
+    animator.SetIKRotation(AvatarIKGoal.RightHand, fixedRotation);
+}
 
             if (leftHandTarget != null)
             {
