@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using UnityEngine;
+using TMPro;
 
 namespace sandbox
 {
@@ -9,9 +10,20 @@ namespace sandbox
         public float bulletRange = 50f;
         public float fireRate = 0.08f;
 
+[Header("UI")]
+public TMP_Text ammoText;
+public TMP_Text magazineCountText;
+
+
+
         [Header("Ammo")]
         public int magazineSize = 12;
         public int currentAmmo = 12;
+
+[Header("Magazines")]
+public int magazines = 4;
+
+
 
         [Header("Reload")]
         public float reloadTime = 1.5f;
@@ -60,8 +72,20 @@ public Transform casingEjectPoint;
 		
         void Start()
         {
-            currentAmmo = magazineSize;
+            //currentAmmo = magazineSize;
+			
+UpdateAmmoUI();
         }
+
+void UpdateAmmoUI()
+{
+    if (ammoText != null)
+        ammoText.text = currentAmmo.ToString();
+
+    if (magazineCountText != null)
+        magazineCountText.text = magazines.ToString();
+}
+
 
         void Update()
         {
@@ -91,7 +115,7 @@ public Transform casingEjectPoint;
 
                 nextFireTime = Time.time + fireRate;
                 currentAmmo--;
-
+				UpdateAmmoUI();
                 ShootRaycast();
             }
         }
@@ -101,28 +125,33 @@ public Transform casingEjectPoint;
             UpdateIKRightHand();
         }
 
-        IEnumerator ReloadRoutine()
-        {
-            isReloading = true;
+ IEnumerator ReloadRoutine()
+{
+    if (magazines <= 0)
+        yield break;
 
-            if (animator != null)
-            {
-                animator.SetBool("Reloading", true);
-                animator.SetTrigger("Reload");
-            }
+    isReloading = true;
 
-            yield return new WaitForSeconds(reloadTime);
+    if (animator != null)
+    {
+        animator.SetBool("Reloading", true);
+        animator.SetTrigger("Reload");
+    }
 
-            currentAmmo = magazineSize;
+    yield return new WaitForSeconds(reloadTime);
 
-            if (animator != null)
-            {
-                animator.SetBool("Reloading", false);
-            }
+    magazines--;
+    currentAmmo = magazineSize;
 
-            isReloading = false;
-        }
+    UpdateAmmoUI();
 
+    if (animator != null)
+    {
+        animator.SetBool("Reloading", false);
+    }
+
+    isReloading = false;
+}
         void UpdateIKRightHand()
         {
             if (IK_righthand == null)
