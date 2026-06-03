@@ -303,39 +303,44 @@ bool IsWallInFront(out Vector3 wallNormal)
 void StartJump()
 {
     isJumping = true;
-    animator.SetTrigger("Jump");
+
     // Előre sugár "level layer"-re
     Vector3 origin = transform.position + capsule.center;
     Vector3 forwardDir = transform.forward;
-    float checkDistance = 1.0f; // tetszőleges távolság, ami az előtti akadályt ellenőrzi
+    float checkDistance = 1.0f;
+
     if (Physics.Raycast(origin, forwardDir, checkDistance, levelLayerMask, QueryTriggerInteraction.Ignore))
     {
-        // Találtunk előtti akadályt a level layer-en -> csak felfelé ugrás
+        animator.ResetTrigger("Jump");
+        animator.SetTrigger("JumpUp");
+
         currentMoveDirection = Vector3.zero;
         moveDirectionVelocity = Vector3.zero;
         verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
+
         StartCoroutine(JumpCoroutine());
         return;
     }
-    // Egyébként a jelenlegi fal előtti vizsgálat maradhat (ha szükséges)
+
     if (IsWallInFront(out Vector3 wallNormal))
     {
-        if (Time.time - lastJumpTime < jumpCooldown + 0.1f)
-        {
-            currentMoveDirection = Vector3.zero;
-            moveDirectionVelocity = Vector3.zero;
-            verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
-            StartCoroutine(JumpCoroutine());
-            return;
-        }
-        else
-        {
-            currentMoveDirection = Vector3.zero;
-            moveDirectionVelocity = Vector3.zero;
-        }
+        animator.ResetTrigger("Jump");
+        animator.SetTrigger("JumpUp");
+
+        currentMoveDirection = Vector3.zero;
+        moveDirectionVelocity = Vector3.zero;
+        verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
+
+        StartCoroutine(JumpCoroutine());
+        return;
     }
-    // Rendes ugrás, megtartva a vízszintes mozgás sebességét
+
+    // Normál ugrás
+    animator.ResetTrigger("JumpUp");
+    animator.SetTrigger("Jump");
+
     verticalVelocity = Mathf.Sqrt(jumpHeight * gravityForce * 2f);
+
     StartCoroutine(JumpCoroutine());
 }
 
