@@ -12,6 +12,9 @@ namespace sandbox
         [Header("Weapon")]
         public Weapon_Glock weapon;
 
+[Header("Weapon Rotation")]
+public float weaponTurnMultiplier = 6f;
+
         [Header("Movement")]
         public float moveSpeed = 3f;
         public float runMultiplier = 2f;
@@ -463,11 +466,13 @@ if (rightHandTarget != null)
     animator.SetIKPosition(AvatarIKGoal.RightHand, finalRightPos);
 Vector3 euler = rightHandTarget.rotation.eulerAngles;
 
-    Quaternion fixedRotation =
-        transform.rotation *
-        Quaternion.Euler(euler.x,
-    0f,
-    -90f);
+Quaternion fixedRotation =
+    transform.rotation *
+    Quaternion.Euler(euler.x, 0, -90f);
+
+
+
+animator.SetIKRotation(AvatarIKGoal.RightHand, fixedRotation);
 
     animator.SetIKRotation(AvatarIKGoal.RightHand, fixedRotation);
 }
