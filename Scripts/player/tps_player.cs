@@ -178,6 +178,8 @@ public LayerMask levelLayerMask;
                 {
                     verticalVelocity = -groundSnapForce;
                 }
+				animator.SetBool("Grounded", grounded);
+				
             }
         }
 
