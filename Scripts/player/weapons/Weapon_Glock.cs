@@ -257,6 +257,13 @@ namespace sandbox
 
             if (Physics.Raycast(ray, out RaycastHit hit, bulletRange, layerMask))
             {
+				    Debug.Log(
+        "Találat: " +
+        hit.collider.name
+    );
+
+				
+				
                 bulletDirection = (hit.point - stableShootOrigin).normalized;
                 HandleHit(hit, bulletDirection);
             }
