@@ -1,6 +1,8 @@
 ﻿using System.Collections;
 using UnityEngine;
 using TMPro;
+using UnityEngine.VFX;
+
 
 namespace sandbox
 {
@@ -14,7 +16,8 @@ namespace sandbox
 public TMP_Text ammoText;
 public TMP_Text magazineCountText;
 
-
+[Header("VFX")]
+public VisualEffect muzzleVFX;
 
         [Header("Ammo")]
         public int magazineSize = 12;
@@ -258,6 +261,12 @@ void UpdateAmmoUI()
 
         void ShootRaycast()
         {
+			
+			if (muzzleVFX != null)
+{
+    muzzleVFX.Play();
+
+}
             bool aiming = tpsCamera != null && tpsCamera.IsAiming();
             float sprayFactor = aiming ? 0.0005f : 0.004f;
 
@@ -476,5 +485,10 @@ void SpawnImpactEffects(RaycastHit hit)
 
             Destroy(casing, 5f);
         }
+		
+		
+		
+		
+
     }
 }
